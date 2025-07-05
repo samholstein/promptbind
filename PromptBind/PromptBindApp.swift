@@ -1,32 +1,22 @@
-//
-//  PromptBindApp.swift
-//  PromptBind
-//
-//  Created by Sam Holstein on 4/12/25.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct PromptBindApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
+    let container: ModelContainer
+    
+    init() {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            container = try ModelContainer(for: Prompt.self)
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("Failed to create ModelContainer: \(error)")
         }
-    }()
-
+    }
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(modelContext: container.mainContext)
+                .modelContainer(container)
         }
-        .modelContainer(sharedModelContainer)
     }
 }
