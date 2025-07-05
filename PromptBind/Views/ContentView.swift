@@ -84,26 +84,31 @@ struct ContentView: View {
                 selectedCategory = categoryListVM.categories.first
             }
 
-            // Add default prompts if none exist
-            if promptListVM.prompts.isEmpty {
-                if let uncategorized = categoryListVM.categories.first(where: { $0.name == "Uncategorized" }) {
-                    let prompt1 = Prompt(trigger: ";lorem1", expansion: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
-                    prompt1.category = uncategorized
-                    modelContext.insert(prompt1)
+            // Check if default prompts have been added before
+            if !UserDefaults.standard.bool(forKey: "hasAddedDefaultPrompts") {
+                // Add default prompts if none exist
+                if promptListVM.prompts.isEmpty {
+                    if let uncategorized = categoryListVM.categories.first(where: { $0.name == "Uncategorized" }) {
+                        let prompt1 = Prompt(trigger: ";lorem1", expansion: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
+                        prompt1.category = uncategorized
+                        modelContext.insert(prompt1)
 
-                    let prompt2 = Prompt(trigger: ";lorem2", expansion: "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
-                    prompt2.category = uncategorized
-                    modelContext.insert(prompt2)
+                        let prompt2 = Prompt(trigger: ";lorem2", expansion: "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
+                        prompt2.category = uncategorized
+                        modelContext.insert(prompt2)
 
-                    let prompt3 = Prompt(trigger: ";lorem3", expansion: "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.")
-                    prompt3.category = uncategorized
-                    modelContext.insert(prompt3)
+                        let prompt3 = Prompt(trigger: ";lorem3", expansion: "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.")
+                        prompt3.category = uncategorized
+                        modelContext.insert(prompt3)
 
-                    do {
-                        try modelContext.save()
-                        promptListVM.loadPrompts() // Reload prompts after adding defaults
-                    } catch {
-                        print("Error adding default prompts: \(error)")
+                        do {
+                            try modelContext.save()
+                            promptListVM.loadPrompts() // Reload prompts after adding defaults
+                            // Set flag to true after adding defaults
+                            UserDefaults.standard.set(true, forKey: "hasAddedDefaultPrompts")
+                        } catch {
+                            print("Error adding default prompts: \(error)")
+                        }
                     }
                 }
             }
