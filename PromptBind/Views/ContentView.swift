@@ -70,9 +70,11 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingAddPromptSheet) {
             AddPromptView(viewModel: promptListVM, selectedCategory: $selectedCategory)
+                .frame(minWidth: 500, idealWidth: 600, minHeight: 400) // Adjusted sizing
         }
         .sheet(item: $promptToEdit) { prompt in
             EditPromptView(viewModel: promptListVM, prompt: prompt, categoryListVM: categoryListVM)
+                .frame(minWidth: 500, idealWidth: 600, minHeight: 450) // Adjusted sizing
         }
         .onAppear {
             triggerMonitor.startMonitoring()
@@ -82,6 +84,7 @@ struct ContentView: View {
                 selectedCategory = categoryListVM.categories.first
             }
 
+            // Add default prompts if none exist
             if promptListVM.prompts.isEmpty {
                 if let uncategorized = categoryListVM.categories.first(where: { $0.name == "Uncategorized" }) {
                     let prompt1 = Prompt(trigger: ";lorem1", expansion: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
@@ -134,14 +137,28 @@ struct AddPromptView: View {
     var body: some View {
         NavigationView {
             Form {
-                TextField("Trigger (e.g. ;hello)", text: $trigger)
-                TextEditor(text: $expansion)
-                    .frame(minHeight: 100)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
+                VStack(alignment: .leading, spacing: 15) {
+                    Text("New Snippet").font(.title2)
+
+                    LabeledContent {
+                        TextField("e.g. ;hello", text: $trigger)
+                            .textFieldStyle(.roundedBorder)
+                    } label: {
+                        Text("Trigger:")
+                    }
+
+                    LabeledContent {
+                        TextEditor(text: $expansion)
+                            .frame(minHeight: 150, maxHeight: .infinity)
+                            .border(Color.gray.opacity(0.3), width: 1)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } label: {
+                        Text("Expansion:")
+                    }
+                }
+                .frame(maxWidth: .infinity) // Make VStack expand horizontally
             }
+            .padding() // Apply padding to the Form
             .navigationTitle("Add Snippet")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -201,21 +218,39 @@ struct EditPromptView: View {
     var body: some View {
         NavigationView {
             Form {
-                TextField("Trigger", text: $trigger)
-                TextEditor(text: $expansion)
-                    .frame(minHeight: 100)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
+                VStack(alignment: .leading, spacing: 15) {
+                    Text("Edit Snippet").font(.title2)
 
-                Picker("Category", selection: $selectedCategoryID) {
-                    Text("No Category").tag(nil as PersistentIdentifier?)
-                    ForEach(categoryListVM.categories) { cat in
-                        Text(cat.name).tag(cat.id as PersistentIdentifier?)
+                    LabeledContent {
+                        TextField("Trigger", text: $trigger)
+                            .textFieldStyle(.roundedBorder)
+                    } label: {
+                        Text("Trigger:")
+                    }
+
+                    LabeledContent {
+                        TextEditor(text: $expansion)
+                            .frame(minHeight: 150, maxHeight: .infinity)
+                            .border(Color.gray.opacity(0.3), width: 1)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } label: {
+                        Text("Expansion:")
+                    }
+
+                    LabeledContent {
+                        Picker("Category", selection: $selectedCategoryID) {
+                            Text("No Category").tag(nil as PersistentIdentifier?)
+                            ForEach(categoryListVM.categories) { cat in
+                                Text(cat.name).tag(cat.id as PersistentIdentifier?)
+                            }
+                        }
+                    } label: {
+                        Text("Category:")
                     }
                 }
+                .frame(maxWidth: .infinity) // Make VStack expand horizontally
             }
+            .padding() // Apply padding to the Form
             .navigationTitle("Edit Snippet")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
