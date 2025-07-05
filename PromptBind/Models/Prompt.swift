@@ -6,6 +6,7 @@ final class Prompt {
     var trigger: String
     var expansion: String
     var enabled: Bool
+    var category: Category?
     
     init(trigger: String, expansion: String, enabled: Bool = true) {
         self.trigger = trigger

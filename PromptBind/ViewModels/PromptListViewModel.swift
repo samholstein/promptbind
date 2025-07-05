@@ -1,31 +1,34 @@
 import Foundation
+import SwiftData
 import Combine
-import CoreData 
 
 class PromptListViewModel: ObservableObject {
-    @Published var prompts: [PromptItem] = []
+    @Published var prompts: [Prompt] = []
     @Published var selectedCategory: Category? {
         didSet {
-            loadPrompts() 
+            loadPrompts()
         }
     }
     
-    private let dataService: DataService
+    private var modelContext: ModelContext
     private var cancellables = Set<AnyCancellable>()
 
-    init(dataService: DataService = DataServiceImpl()) {
-        self.dataService = dataService
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
         loadPrompts()
     }
 
     func loadPrompts() {
         do {
-            let allPrompts = try dataService.fetchPrompts()
+            let descriptor = FetchDescriptor<Prompt>(sortBy: [SortDescriptor(\.trigger)])
+            let allPrompts = try modelContext.fetch(descriptor)
+            
             if let category = selectedCategory {
-                self.prompts = allPrompts.filter { $0.category?.objectID == category.objectID }
-                                      .sorted { ($0.trigger ?? "") < ($1.trigger ?? "") }
+                self.prompts = allPrompts.filter { $0.category?.id == category.id }
             } else {
-                self.prompts = allPrompts.sorted { ($0.trigger ?? "") < ($1.trigger ?? "") }
+                // If no category is selected, show all prompts or uncategorized ones.
+                // For now, let's show all prompts.
+                self.prompts = allPrompts
             }
         } catch {
             print("Error loading prompts: \(error)")
@@ -33,22 +36,20 @@ class PromptListViewModel: ObservableObject {
         }
     }
 
-    func addPrompt(trigger: String, content: String, category: Category?) {
-        guard let currentCategory = category ?? selectedCategory else {
-            print("Cannot add prompt: No category selected or provided.")
-            return
-        }
+    func addPrompt(trigger: String, expansion: String, category: Category?) {
         guard !trigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             print("Prompt trigger cannot be empty.")
             return
         }
-         guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            print("Prompt content cannot be empty.")
+         guard !expansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            print("Prompt expansion cannot be empty.")
             return
         }
+        
         do {
-            let allPrompts = try dataService.fetchPrompts() 
-            if allPrompts.contains(where: { $0.trigger == trigger }) {
+            let descriptor = FetchDescriptor<Prompt>(predicate: #Predicate { $0.trigger == trigger })
+            let existingPrompts = try modelContext.fetch(descriptor)
+            if !existingPrompts.isEmpty {
                 print("Prompt with trigger '\(trigger)' already exists.")
                 return
             }
@@ -56,82 +57,58 @@ class PromptListViewModel: ObservableObject {
             print("Error checking for duplicate triggers: \(error)")
         }
 
-        let backgroundContext = dataService.newBackgroundContext()
-        backgroundContext.performAndWait {
-            guard let categoryInContext = backgroundContext.object(with: currentCategory.objectID) as? Category else {
-                print("Failed to fetch category in background context.")
-                return
-            }
-
-            let newPrompt = PromptItem(context: backgroundContext)
-            newPrompt.id = UUID()
-            newPrompt.trigger = trigger
-            newPrompt.content = content
-            newPrompt.category = categoryInContext
-            
-            do {
-                try backgroundContext.save()
-                DispatchQueue.main.async {
-                    self.loadPrompts() 
-                }
-            } catch {
-                print("Error saving new prompt: \(error)")
-            }
-        }
-    }
-
-    func updatePrompt(_ prompt: PromptItem, newTrigger: String?, newContent: String?, newCategory: Category?) {
-        guard let context = prompt.managedObjectContext else {
-            print("Prompt has no context to save.")
-            return
-        }
-
-        var hasChanges = false
-        context.performAndWait {
-            if let trigger = newTrigger, !trigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, prompt.trigger != trigger {
-                do {
-                    let allPrompts = try self.dataService.fetchPrompts(context: context)
-                    if allPrompts.contains(where: { $0.objectID != prompt.objectID && $0.trigger == trigger }) {
-                        print("Another prompt with trigger '\(trigger)' already exists.")
-                        return 
-                    }
-                    prompt.trigger = trigger
-                    hasChanges = true
-                } catch {
-                     print("Error checking for duplicate triggers during update: \(error)")
-                }
-            }
-            if let content = newContent, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, prompt.content != content {
-                prompt.content = content
-                hasChanges = true
-            }
-            if let category = newCategory, prompt.category?.objectID != category.objectID {
-                if let categoryInContext = context.object(with: category.objectID) as? Category {
-                    prompt.category = categoryInContext
-                    hasChanges = true
-                } else {
-                    print("Failed to fetch new category in prompt's context for update.")
-                }
-            }
-
-            if hasChanges {
-                do {
-                    if context.hasChanges { 
-                         try context.save()
-                    }
-                    DispatchQueue.main.async {
-                        self.loadPrompts()
-                    }
-                } catch {
-                    print("Error updating prompt: \(error)")
-                }
-            }
-        }
-    }
-
-    func deletePrompt(_ prompt: PromptItem) {
+        let newPrompt = Prompt(trigger: trigger, expansion: expansion)
+        newPrompt.category = category ?? selectedCategory
+        modelContext.insert(newPrompt)
+        
         do {
-            try dataService.delete(prompts: [prompt])
+            try modelContext.save()
+            loadPrompts()
+        } catch {
+            print("Error saving new prompt: \(error)")
+        }
+    }
+
+    func updatePrompt(_ prompt: Prompt, newTrigger: String?, newExpansion: String?, newCategory: Category?) {
+        var hasChanges = false
+
+        if let trigger = newTrigger, !trigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, prompt.trigger != trigger {
+            do {
+                let descriptor = FetchDescriptor<Prompt>(predicate: #Predicate { $0.trigger == trigger })
+                let existingPrompts = try modelContext.fetch(descriptor)
+                if existingPrompts.contains(where: { $0.id != prompt.id }) {
+                    print("Another prompt with trigger '\(trigger)' already exists.")
+                    return
+                }
+                prompt.trigger = trigger
+                hasChanges = true
+            } catch {
+                 print("Error checking for duplicate triggers during update: \(error)")
+            }
+        }
+        if let expansion = newExpansion, !expansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, prompt.expansion != expansion {
+            prompt.expansion = expansion
+            hasChanges = true
+        }
+        if let category = newCategory, prompt.category?.id != category.id {
+            prompt.category = category
+            hasChanges = true
+        }
+
+        if hasChanges {
+            do {
+                try modelContext.save()
+                loadPrompts()
+            } catch {
+                print("Error updating prompt: \(error)")
+            }
+        }
+    }
+
+    func deletePrompt(_ prompt: Prompt) {
+        modelContext.delete(prompt)
+        do {
+            try modelContext.save()
             loadPrompts()
         } catch {
             print("Error deleting prompt: \(error)")

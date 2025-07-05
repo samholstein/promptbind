@@ -1,21 +1,29 @@
 import Foundation
+import SwiftData
 import Combine
-import CoreData
 
 class CategoryListViewModel: ObservableObject {
     @Published var categories: [Category] = []
     
-    private let dataService: DataService
+    private var modelContext: ModelContext
     private var cancellables = Set<AnyCancellable>()
 
-    init(dataService: DataService = DataServiceImpl()) {
-        self.dataService = dataService
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
         loadCategories()
     }
 
     func loadCategories() {
         do {
-            self.categories = try dataService.fetchCategories().sorted { $0.order < $1.order }
+            let descriptor = FetchDescriptor<Category>(sortBy: [SortDescriptor(\.order)])
+            self.categories = try modelContext.fetch(descriptor)
+            if self.categories.isEmpty {
+                // ADD: Create a default "Uncategorized" category if none exist
+                let defaultCategory = Category(name: "Uncategorized", order: 0)
+                modelContext.insert(defaultCategory)
+                try modelContext.save()
+                self.categories = [defaultCategory]
+            }
         } catch {
             print("Error loading categories: \(error)")
             self.categories = []
@@ -34,20 +42,13 @@ class CategoryListViewModel: ObservableObject {
 
         let newOrder = (categories.map { $0.order }.max() ?? -1) + 1
         
-        let backgroundContext = dataService.newBackgroundContext()
-        backgroundContext.performAndWait {
-            let newCategory = Category(context: backgroundContext)
-            newCategory.name = name
-            newCategory.order = newOrder
-            
-            do {
-                try backgroundContext.save()
-                DispatchQueue.main.async {
-                    self.loadCategories()
-                }
-            } catch {
-                print("Error saving new category: \(error)")
-            }
+        let newCategory = Category(name: name, order: newOrder)
+        modelContext.insert(newCategory)
+        do {
+            try modelContext.save()
+            loadCategories()
+        } catch {
+            print("Error saving new category: \(error)")
         }
     }
 
@@ -56,65 +57,67 @@ class CategoryListViewModel: ObservableObject {
             print("New category name cannot be empty.")
             return
         }
-        guard !categories.contains(where: { $0.objectID != category.objectID && $0.name == newName }) else {
+        guard !categories.contains(where: { $0.id != category.id && $0.name == newName }) else {
             print("Another category with name '\(newName)' already exists.")
             return
         }
 
-        guard let context = category.managedObjectContext else {
-            print("Category has no context to save.")
-            return
-        }
-        
-        context.performAndWait {
-            category.name = newName
-            do {
-                if context.hasChanges {
-                    try context.save()
-                }
-                DispatchQueue.main.async {
-                    self.loadCategories()
-                }
-            } catch {
-                print("Error renaming category: \(error)")
-            }
+        category.name = newName
+        do {
+            try modelContext.save()
+            loadCategories()
+        } catch {
+            print("Error renaming category: \(error)")
         }
     }
     
-    func reorderCategories(from sourceIndex: Int, to destinationIndex: Int) {
-        guard sourceIndex >= 0, sourceIndex < categories.count,
-              destinationIndex >= 0, destinationIndex <= categories.count else {
-            print("Invalid source or destination index for reorder.")
-            return
-        }
-
+    func reorderCategories(from sourceIndex: IndexSet, to destinationIndex: Int) {
         var reorderedCategories = categories
-        let movedCategory = reorderedCategories.remove(at: sourceIndex)
-        let actualDestinationIndex = sourceIndex < destinationIndex ? destinationIndex - 1 : destinationIndex
-        reorderedCategories.insert(movedCategory, at: actualDestinationIndex)
+        reorderedCategories.move(fromOffsets: sourceIndex, toOffset: destinationIndex)
 
-        let backgroundContext = dataService.newBackgroundContext()
-        backgroundContext.performAndWait {
-            for (index, catMOID) in reorderedCategories.map({ $0.objectID }).enumerated() {
-                if let categoryInContext = backgroundContext.object(with: catMOID) as? Category {
-                    categoryInContext.order = Int16(index)
-                }
-            }
-            do {
-                try backgroundContext.save()
-                DispatchQueue.main.async {
-                    self.loadCategories() 
-                }
-            } catch {
-                print("Error saving reordered categories: \(error)")
-            }
+        for (index, category) in reorderedCategories.enumerated() {
+            category.order = Int16(index)
+        }
+        
+        do {
+            try modelContext.save()
+            loadCategories()
+        } catch {
+            print("Error saving reordered categories: \(error)")
         }
     }
 
     func deleteCategory(_ category: Category) {
+        // Find the "Uncategorized" category or create it if it doesn't exist
+        var uncategorized: Category?
         do {
-            try dataService.delete(categories: [category])
-            loadCategories() 
+            let descriptor = FetchDescriptor<Category>(predicate: #Predicate { $0.name == "Uncategorized" })
+            uncategorized = try modelContext.fetch(descriptor).first
+            if uncategorized == nil {
+                uncategorized = Category(name: "Uncategorized", order: (categories.map { $0.order }.max() ?? -1) + 1)
+                modelContext.insert(uncategorized!)
+            }
+        } catch {
+            print("Error finding or creating Uncategorized category: \(error)")
+            // If we can't get an uncategorized category, we can't reassign prompts, so we'll just delete them.
+        }
+
+        // Reassign prompts from the deleted category to "Uncategorized"
+        if let promptsToReassign = category.prompts {
+            for prompt in promptsToReassign {
+                if let uncategorized = uncategorized {
+                    prompt.category = uncategorized
+                } else {
+                    // If no uncategorized category, delete the prompt.
+                    modelContext.delete(prompt)
+                }
+            }
+        }
+
+        modelContext.delete(category)
+        do {
+            try modelContext.save()
+            loadCategories()
         } catch {
             print("Error deleting category: \(error)")
         }

@@ -3,20 +3,32 @@ import SwiftData
 import Combine
 
 class TriggerMonitorService: ObservableObject {
+    @Published private(set) var prompts: [Prompt] = []
+    
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     
     private var currentBuffer: [String] = []
     private let maxBufferLength = 50
     
-    private let modelContext: ModelContext
-    @Query private var prompts: [Prompt]
+    private var modelContext: ModelContext
     
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+        do {
+            let descriptor = FetchDescriptor<Prompt>()
+            self.prompts = try modelContext.fetch(descriptor)
+        } catch {
+            print("Failed to fetch prompts: \(error)")
+        }
     }
     
-    func startMonitoring() {
+    @MainActor
+    func updatePrompts(_ newPrompts: [Prompt]) {
+        self.prompts = newPrompts
+    }
+    
+    nonisolated func startMonitoring() {
         guard AXIsProcessTrusted() else {
             print("Accessibility permissions not granted")
             return
@@ -49,7 +61,7 @@ class TriggerMonitorService: ObservableObject {
         }
     }
     
-    func stopMonitoring() {
+    nonisolated func stopMonitoring() {
         if let eventTap = eventTap {
             CGEvent.tapEnable(tap: eventTap, enable: false)
         }
@@ -61,7 +73,7 @@ class TriggerMonitorService: ObservableObject {
         currentBuffer = []
     }
     
-    private func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    nonisolated private func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .keyDown,
            let nsEvent = NSEvent(cgEvent: event),
            let chars = nsEvent.charactersIgnoringModifiers {
@@ -94,7 +106,7 @@ class TriggerMonitorService: ObservableObject {
         return Unmanaged.passRetained(event)
     }
     
-    private func deleteCharacters(count: Int) {
+    nonisolated private func deleteCharacters(count: Int) {
         guard count > 0 else { return }
         
         let deleteKey = CGKeyCode(51) // Delete key
@@ -108,7 +120,7 @@ class TriggerMonitorService: ObservableObject {
         }
     }
     
-    private func insertText(_ text: String) {
+    nonisolated private func insertText(_ text: String) {
         // Use pasteboard for expansion insertion
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()

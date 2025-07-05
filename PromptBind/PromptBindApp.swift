@@ -7,7 +7,7 @@ struct PromptBindApp: App {
     
     init() {
         do {
-            container = try ModelContainer(for: Prompt.self)
+            container = try ModelContainer(for: Prompt.self, Category.self)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
