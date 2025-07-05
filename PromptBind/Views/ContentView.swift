@@ -29,27 +29,7 @@ struct ContentView: View {
     
     var body: some View {
         NavigationSplitView {
-            CategoryListView(viewModel: categoryListVM, selectedCategory: $selectedCategory)
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button(action: {
-                            newCategoryName = ""
-                            showingAddCategoryAlert = true
-                        }) {
-                            Label("Add Category", systemImage: "plus.circle.fill")
-                        }
-                        .keyboardShortcut("n", modifiers: [.command, .shift])
-                    }
-                }
-                .alert("New Category", isPresented: $showingAddCategoryAlert, actions: {
-                    TextField("Category Name", text: $newCategoryName)
-                    Button("Add", action: {
-                        categoryListVM.addCategory(name: newCategoryName)
-                    })
-                    Button("Cancel", role: .cancel) { }
-                }, message: {
-                    Text("Enter the name for the new category.")
-                })
+            CategoryListView(viewModel: categoryListVM, selectedCategory: $selectedCategory, showingAddCategoryAlert: $showingAddCategoryAlert)
         } detail: {
             PromptListView(viewModel: promptListVM, promptToEdit: $promptToEdit)
                 .toolbar {
@@ -124,6 +104,15 @@ struct ContentView: View {
                 selectedCategory = newCategories.first
             }
         }
+        .alert("New Category", isPresented: $showingAddCategoryAlert, actions: {
+            TextField("Category Name", text: $newCategoryName)
+            Button("Add", action: {
+                categoryListVM.addCategory(name: newCategoryName)
+            })
+            Button("Cancel", role: .cancel) { }
+        }, message: {
+            Text("Enter the name for the new category.")
+        })
     }
 }
 
@@ -148,6 +137,7 @@ struct AddPromptView: View {
                     LabeledContent {
                         TextField("e.g. ;hello", text: $trigger)
                             .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: .infinity)
                     } label: {
                         Text("Trigger:")
                     }
@@ -157,14 +147,14 @@ struct AddPromptView: View {
                             .frame(minHeight: 150, maxHeight: .infinity)
                             .border(Color.gray.opacity(0.3), width: 1)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .frame(maxWidth: .infinity) // Ensure TextEditor expands horizontally
+                            .frame(maxWidth: .infinity)
                     } label: {
                         Text("Expansion:")
                     }
                 }
-                .frame(maxWidth: .infinity) // Make VStack expand horizontally
+                .frame(maxWidth: .infinity)
             }
-            .padding() // Apply padding to the Form
+            .padding()
             .navigationTitle("Add Snippet")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -201,11 +191,11 @@ struct AddPromptView: View {
 struct EditPromptView: View {
     @ObservedObject var viewModel: PromptListViewModel
     let prompt: Prompt
-    @ObservedObject var categoryListVM: CategoryListViewModel // To get all categories
+    @ObservedObject var categoryListVM: CategoryListViewModel
 
     @State private var trigger: String
     @State private var expansion: String
-    @State private var selectedCategoryID: PersistentIdentifier? // Use PersistentIdentifier for category selection
+    @State private var selectedCategoryID: PersistentIdentifier?
     
     @Environment(\.dismiss) var dismiss
     
@@ -230,6 +220,7 @@ struct EditPromptView: View {
                     LabeledContent {
                         TextField("Trigger", text: $trigger)
                             .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: .infinity)
                     } label: {
                         Text("Trigger:")
                     }
@@ -239,7 +230,7 @@ struct EditPromptView: View {
                             .frame(minHeight: 150, maxHeight: .infinity)
                             .border(Color.gray.opacity(0.3), width: 1)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .frame(maxWidth: .infinity) // Ensure TextEditor expands horizontally
+                            .frame(maxWidth: .infinity)
                     } label: {
                         Text("Expansion:")
                     }
@@ -255,9 +246,9 @@ struct EditPromptView: View {
                         Text("Category:")
                     }
                 }
-                .frame(maxWidth: .infinity) // Make VStack expand horizontally
+                .frame(maxWidth: .infinity)
             }
-            .padding() // Apply padding to the Form
+            .padding()
             .navigationTitle("Edit Snippet")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -291,11 +282,11 @@ struct EditPromptView: View {
     }
 }
 
-
 // MARK: - CategoryListView
 struct CategoryListView: View {
     @ObservedObject var viewModel: CategoryListViewModel
     @Binding var selectedCategory: Category?
+    @Binding var showingAddCategoryAlert: Bool
 
     @State private var showingRenameCategoryAlert = false
     @State private var categoryToRename: Category?
@@ -305,26 +296,70 @@ struct CategoryListView: View {
     @State private var categoryToDelete: Category?
     
     var body: some View {
-        List(selection: $selectedCategory) {
-            ForEach(viewModel.categories) { category in
-                Text(category.name)
-                    .tag(category as Category?)
-                    .contextMenu {
-                        Button("Rename") {
-                            categoryToRename = category
-                            renamedCategoryName = category.name
-                            showingRenameCategoryAlert = true
+        VStack { 
+            List(selection: $selectedCategory) {
+                ForEach(viewModel.categories) { category in
+                    Text(category.name)
+                        .tag(category as Category?)
+                        .contextMenu {
+                            Button("Rename") {
+                                categoryToRename = category
+                                renamedCategoryName = category.name
+                                showingRenameCategoryAlert = true
+                            }
+                            Button("Delete", role: .destructive) {
+                                if category.name == "Uncategorized" {
+                                    print("The 'Uncategorized' category cannot be deleted.")
+                                } else {
+                                    categoryToDelete = category
+                                    showingDeleteCategoryAlert = true
+                                }
+                            }
                         }
-                        Button("Delete", role: .destructive) {
+                }
+                .onMove(perform: viewModel.reorderCategories)
+                .onDelete { indexSet in
+                    for index in indexSet {
+                        let category = viewModel.categories[index]
+                        if category.name == "Uncategorized" {
+                            print("The 'Uncategorized' category cannot be deleted.")
+                        } else {
                             categoryToDelete = category
                             showingDeleteCategoryAlert = true
                         }
                     }
+                }
             }
-            .onMove(perform: viewModel.reorderCategories)
+            .listStyle(.sidebar)
+            .navigationTitle("Categories")
+            
+            Divider() 
+            
+            HStack { 
+                Button(action: {
+                    showingAddCategoryAlert = true
+                }) {
+                    Label("Add Category", systemImage: "plus")
+                }
+                
+                Spacer() 
+                
+                Button(action: {
+                    if let selectedCategory = selectedCategory {
+                        if selectedCategory.name == "Uncategorized" {
+                            print("The 'Uncategorized' category cannot be deleted via the toolbar button.")
+                        } else {
+                            categoryToDelete = selectedCategory
+                            showingDeleteCategoryAlert = true
+                        }
+                    }
+                }) {
+                    Label("Delete Category", systemImage: "minus")
+                }
+                .disabled(selectedCategory == nil || selectedCategory?.name == "Uncategorized")
+            }
+            .padding([.horizontal, .bottom]) 
         }
-        .listStyle(.sidebar)
-        .navigationTitle("Categories")
         .alert("Rename Category", isPresented: $showingRenameCategoryAlert, presenting: categoryToRename) { categoryToEdit in
             TextField("New Name", text: $renamedCategoryName)
             Button("Rename") {
@@ -336,8 +371,11 @@ struct CategoryListView: View {
         }
         .alert("Delete Category", isPresented: $showingDeleteCategoryAlert, presenting: categoryToDelete) { categoryToDel in
             Button("Delete", role: .destructive) {
+                if categoryToDel.name == "Uncategorized" {
+                    print("The 'Uncategorized' category cannot be deleted.")
+                    return
+                }
                 viewModel.deleteCategory(categoryToDel)
-                // If the selected category is deleted, nil it out or re-select first available
                 if selectedCategory?.id == categoryToDel.id {
                     selectedCategory = viewModel.categories.first
                 }
@@ -415,7 +453,7 @@ struct PromptListView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { promptToDel in
-            Text("Are you sure you want to delete the prompt with trigger \"\(promptToDel.trigger)\"? This action cannot be undone.")
+            Text("Are you sure you want to delete the prompt with trigger \(promptToDel.trigger)? This action cannot be undone.")
         }
     }
     
