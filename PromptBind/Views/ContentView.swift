@@ -157,6 +157,7 @@ struct AddPromptView: View {
                             .frame(minHeight: 150, maxHeight: .infinity)
                             .border(Color.gray.opacity(0.3), width: 1)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .frame(maxWidth: .infinity) // Ensure TextEditor expands horizontally
                     } label: {
                         Text("Expansion:")
                     }
@@ -238,6 +239,7 @@ struct EditPromptView: View {
                             .frame(minHeight: 150, maxHeight: .infinity)
                             .border(Color.gray.opacity(0.3), width: 1)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .frame(maxWidth: .infinity) // Ensure TextEditor expands horizontally
                     } label: {
                         Text("Expansion:")
                     }
