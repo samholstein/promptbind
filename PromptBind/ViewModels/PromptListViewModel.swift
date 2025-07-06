@@ -26,10 +26,14 @@ class PromptListViewModel: ObservableObject {
             if let category = selectedCategory {
                 self.prompts = allPrompts.filter { $0.category?.id == category.id }
             } else {
-                // If no category is selected, show all prompts or uncategorized ones.
-                // For now, let's show all prompts.
+                // If no category is selected, show all prompts
                 self.prompts = allPrompts
             }
+            
+            // Debug logging to help track filtering
+            print("Selected category: \(selectedCategory?.name ?? "None")")
+            print("Total prompts: \(allPrompts.count)")
+            print("Filtered prompts: \(self.prompts.count)")
         } catch {
             print("Error loading prompts: \(error)")
             self.prompts = []

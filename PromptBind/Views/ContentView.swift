@@ -104,10 +104,15 @@ struct ContentView: View {
                 selectedCategory = newCategories.first
             }
         }
+        .onChange(of: selectedCategory) { _, newCategory in
+            // Ensure the promptListVM gets updated when category changes
+            promptListVM.selectedCategory = newCategory
+        }
         .alert("New Category", isPresented: $showingAddCategoryAlert, actions: {
             TextField("Category Name", text: $newCategoryName)
             Button("Add", action: {
                 categoryListVM.addCategory(name: newCategoryName)
+                newCategoryName = ""
             })
             Button("Cancel", role: .cancel) { }
         }, message: {
