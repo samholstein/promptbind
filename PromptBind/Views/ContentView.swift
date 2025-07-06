@@ -296,7 +296,7 @@ struct CategoryListView: View {
     @State private var categoryToDelete: Category?
     
     var body: some View {
-        VStack { 
+        VStack(spacing: 0) { 
             List(selection: $selectedCategory) {
                 ForEach(viewModel.categories) { category in
                     Text(category.name)
@@ -333,16 +333,17 @@ struct CategoryListView: View {
             .listStyle(.sidebar)
             .navigationTitle("Categories")
             
-            Divider() 
-            
-            HStack { 
+            // Improved toolbar with better styling
+            HStack(spacing: 8) {
                 Button(action: {
                     showingAddCategoryAlert = true
                 }) {
-                    Label("Add Category", systemImage: "plus")
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.primary)
                 }
-                
-                Spacer() 
+                .buttonStyle(.borderless)
+                .help("Add Category")
                 
                 Button(action: {
                     if let selectedCategory = selectedCategory {
@@ -354,11 +355,20 @@ struct CategoryListView: View {
                         }
                     }
                 }) {
-                    Label("Delete Category", systemImage: "minus")
+                    Image(systemName: "minus")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(selectedCategory == nil || selectedCategory?.name == "Uncategorized" ? .secondary : .primary)
                 }
+                .buttonStyle(.borderless)
                 .disabled(selectedCategory == nil || selectedCategory?.name == "Uncategorized")
+                .help("Delete Category")
+                
+                Spacer()
             }
-            .padding([.horizontal, .bottom]) 
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(NSColor.controlBackgroundColor))
+            .border(Color(NSColor.separatorColor), width: 0.5)
         }
         .alert("Rename Category", isPresented: $showingRenameCategoryAlert, presenting: categoryToRename) { categoryToEdit in
             TextField("New Name", text: $renamedCategoryName)
@@ -382,7 +392,9 @@ struct CategoryListView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: { categoryToDel in
-            Text("Are you sure you want to delete the category \"\(categoryToDel.name)\"? All prompts within this category will be moved to 'Uncategorized'. This action cannot be undone.")
+            let promptCount = categoryToDel.prompts?.count ?? 0
+            let promptText = promptCount == 1 ? "prompt" : "prompts"
+            return Text("Are you sure you want to delete the category \"\(categoryToDel.name)\"? This will permanently delete all \(promptCount) \(promptText) in this category. This action cannot be undone.")
         }
     }
 }

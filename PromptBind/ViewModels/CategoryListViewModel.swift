@@ -18,7 +18,6 @@ class CategoryListViewModel: ObservableObject {
             let descriptor = FetchDescriptor<Category>(sortBy: [SortDescriptor(\.order)])
             self.categories = try modelContext.fetch(descriptor)
             if self.categories.isEmpty {
-                // ADD: Create a default "Uncategorized" category if none exist
                 let defaultCategory = Category(name: "Uncategorized", order: 0)
                 modelContext.insert(defaultCategory)
                 try modelContext.save()
@@ -88,33 +87,16 @@ class CategoryListViewModel: ObservableObject {
     }
 
     func deleteCategory(_ category: Category) {
-        // Find the "Uncategorized" category or create it if it doesn't exist
-        var uncategorized: Category?
-        do {
-            let descriptor = FetchDescriptor<Category>(predicate: #Predicate { $0.name == "Uncategorized" })
-            uncategorized = try modelContext.fetch(descriptor).first
-            if uncategorized == nil {
-                uncategorized = Category(name: "Uncategorized", order: (categories.map { $0.order }.max() ?? -1) + 1)
-                modelContext.insert(uncategorized!)
-            }
-        } catch {
-            print("Error finding or creating Uncategorized category: \(error)")
-            // If we can't get an uncategorized category, we can't reassign prompts, so we'll just delete them.
-        }
-
-        // Reassign prompts from the deleted category to "Uncategorized"
-        if let promptsToReassign = category.prompts {
-            for prompt in promptsToReassign {
-                if let uncategorized = uncategorized {
-                    prompt.category = uncategorized
-                } else {
-                    // If no uncategorized category, delete the prompt.
-                    modelContext.delete(prompt)
-                }
+        // Delete all prompts in this category first
+        if let promptsToDelete = category.prompts {
+            for prompt in promptsToDelete {
+                modelContext.delete(prompt)
             }
         }
 
+        // Delete the category itself
         modelContext.delete(category)
+        
         do {
             try modelContext.save()
             loadCategories()
