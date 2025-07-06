@@ -8,9 +8,9 @@ struct ContentView: View {
     @StateObject private var promptListVM: PromptListViewModel
     @StateObject private var triggerMonitor: TriggerMonitorService
     
-    @State private var selectedCategory: Category? {
+    @State private var selectedCategorySelection: CategorySelection? {
         didSet {
-            promptListVM.selectedCategory = selectedCategory
+            promptListVM.selectedCategorySelection = selectedCategorySelection
         }
     }
     
@@ -29,13 +29,13 @@ struct ContentView: View {
     
     var body: some View {
         NavigationSplitView {
-            CategoryListView(viewModel: categoryListVM, selectedCategory: $selectedCategory, showingAddCategoryAlert: $showingAddCategoryAlert)
+            CategoryListView(viewModel: categoryListVM, selectedCategorySelection: $selectedCategorySelection, showingAddCategoryAlert: $showingAddCategoryAlert)
         } detail: {
             PromptListView(viewModel: promptListVM, promptToEdit: $promptToEdit)
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button(action: {
-                            if promptListVM.selectedCategory != nil || !categoryListVM.categories.isEmpty {
+                            if promptListVM.selectedCategory != nil || selectedCategorySelection?.isAll == true || !categoryListVM.categories.isEmpty {
                                 showingAddPromptSheet = true
                             } else {
                                 print("No category selected and no categories exist to add prompt to.")
@@ -43,30 +43,27 @@ struct ContentView: View {
                         }) {
                             Label("Add Prompt", systemImage: "plus")
                         }
-                        .disabled(promptListVM.selectedCategory == nil && categoryListVM.categories.isEmpty)
+                        .disabled(selectedCategorySelection == nil && categoryListVM.categories.isEmpty)
                         .keyboardShortcut("n", modifiers: .command)
                     }
                 }
         }
         .sheet(isPresented: $showingAddPromptSheet) {
-            AddPromptView(viewModel: promptListVM, selectedCategory: $selectedCategory)
-                .frame(minWidth: 500, idealWidth: 600, minHeight: 400) // Adjusted sizing
+            AddPromptView(viewModel: promptListVM, selectedCategorySelection: $selectedCategorySelection, categoryListVM: categoryListVM)
+                .frame(minWidth: 500, idealWidth: 600, minHeight: 400) 
         }
         .sheet(item: $promptToEdit) { prompt in
             EditPromptView(viewModel: promptListVM, prompt: prompt, categoryListVM: categoryListVM)
-                .frame(minWidth: 500, idealWidth: 600, minHeight: 450) // Adjusted sizing
+                .frame(minWidth: 500, idealWidth: 600, minHeight: 450) 
         }
         .onAppear {
             triggerMonitor.startMonitoring()
             triggerMonitor.updatePrompts(promptListVM.prompts)
-            // Ensure a category is selected on launch if categories exist
-            if selectedCategory == nil && !categoryListVM.categories.isEmpty {
-                selectedCategory = categoryListVM.categories.first
+            if selectedCategorySelection == nil {
+                selectedCategorySelection = .all
             }
 
-            // Check if default prompts have been added before
             if !UserDefaults.standard.bool(forKey: "hasAddedDefaultPrompts") {
-                // Add default prompts if none exist
                 if promptListVM.prompts.isEmpty {
                     if let uncategorized = categoryListVM.categories.first(where: { $0.name == "Uncategorized" }) {
                         let prompt1 = Prompt(trigger: ";lorem1", expansion: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
@@ -83,8 +80,7 @@ struct ContentView: View {
 
                         do {
                             try modelContext.save()
-                            promptListVM.loadPrompts() // Reload prompts after adding defaults
-                            // Set flag to true after adding defaults
+                            promptListVM.loadPrompts() 
                             UserDefaults.standard.set(true, forKey: "hasAddedDefaultPrompts")
                         } catch {
                             print("Error adding default prompts: \(error)")
@@ -100,13 +96,21 @@ struct ContentView: View {
             triggerMonitor.updatePrompts(newPrompts)
         }
         .onChange(of: categoryListVM.categories) { _, newCategories in
-            if selectedCategory == nil || !newCategories.contains(where: { $0.id == selectedCategory?.id }) {
-                selectedCategory = newCategories.first
+            if let currentSelection = selectedCategorySelection {
+                switch currentSelection {
+                case .all:
+                    break
+                case .category(let category):
+                    if !newCategories.contains(where: { $0.id == category.id }) {
+                        selectedCategorySelection = .all
+                    }
+                }
+            } else {
+                selectedCategorySelection = .all
             }
         }
-        .onChange(of: selectedCategory) { _, newCategory in
-            // Ensure the promptListVM gets updated when category changes
-            promptListVM.selectedCategory = newCategory
+        .onChange(of: selectedCategorySelection) { _, newCategorySelection in
+            promptListVM.selectedCategorySelection = newCategorySelection
         }
         .alert("New Category", isPresented: $showingAddCategoryAlert, actions: {
             TextField("Category Name", text: $newCategoryName)
@@ -124,10 +128,12 @@ struct ContentView: View {
 // MARK: - AddPromptView
 struct AddPromptView: View {
     @ObservedObject var viewModel: PromptListViewModel
-    @Binding var selectedCategory: Category?
+    @Binding var selectedCategorySelection: CategorySelection?
+    @ObservedObject var categoryListVM: CategoryListViewModel
     
     @State private var trigger: String = ""
     @State private var expansion: String = ""
+    @State private var selectedCategoryForPrompt: Category?
     @Environment(\.dismiss) var dismiss
     
     @State private var showingValidationErrorAlert = false
@@ -156,6 +162,16 @@ struct AddPromptView: View {
                     } label: {
                         Text("Expansion:")
                     }
+
+                    LabeledContent {
+                        Picker("Category", selection: $selectedCategoryForPrompt) {
+                            ForEach(categoryListVM.categories) { category in
+                                Text(category.name).tag(category as Category?)
+                            }
+                        }
+                    } label: {
+                        Text("Category:")
+                    }
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -177,11 +193,23 @@ struct AddPromptView: View {
                             showingValidationErrorAlert = true
                             return
                         }
-                        viewModel.addPrompt(trigger: trigger, expansion: expansion, category: selectedCategory)
+                        viewModel.addPrompt(trigger: trigger, expansion: expansion, category: selectedCategoryForPrompt)
                         dismiss()
                     }
                     .disabled(trigger.isEmpty || expansion.isEmpty)
                 }
+            }
+        }
+        .onAppear {
+            if let currentSelection = selectedCategorySelection {
+                switch currentSelection {
+                case .all:
+                    selectedCategoryForPrompt = categoryListVM.categories.first
+                case .category(let category):
+                    selectedCategoryForPrompt = category
+                }
+            } else {
+                selectedCategoryForPrompt = categoryListVM.categories.first
             }
         }
         .alert("Validation Error", isPresented: $showingValidationErrorAlert) {
@@ -290,7 +318,7 @@ struct EditPromptView: View {
 // MARK: - CategoryListView
 struct CategoryListView: View {
     @ObservedObject var viewModel: CategoryListViewModel
-    @Binding var selectedCategory: Category?
+    @Binding var selectedCategorySelection: CategorySelection?
     @Binding var showingAddCategoryAlert: Bool
 
     @State private var showingRenameCategoryAlert = false
@@ -302,28 +330,43 @@ struct CategoryListView: View {
     
     var body: some View {
         VStack(spacing: 0) { 
-            List(selection: $selectedCategory) {
+            List(selection: $selectedCategorySelection) {
+                HStack {
+                    Image(systemName: "list.bullet")
+                        .foregroundColor(.accentColor)
+                    Text("All")
+                        .fontWeight(.medium)
+                }
+                .tag(CategorySelection.all)
+                .onTapGesture {
+                    selectedCategorySelection = .all
+                }
+
                 ForEach(viewModel.categories, id: \.id) { category in
-                    Text(category.name)
-                        .tag(category)
-                        .contextMenu {
-                            Button("Rename") {
-                                categoryToRename = category
-                                renamedCategoryName = category.name
-                                showingRenameCategoryAlert = true
-                            }
-                            Button("Delete", role: .destructive) {
-                                if category.name == "Uncategorized" {
-                                    print("The 'Uncategorized' category cannot be deleted.")
-                                } else {
-                                    categoryToDelete = category
-                                    showingDeleteCategoryAlert = true
-                                }
+                    HStack {
+                        Image(systemName: "folder")
+                            .foregroundColor(.secondary)
+                        Text(category.name)
+                    }
+                    .tag(CategorySelection.category(category))
+                    .contextMenu {
+                        Button("Rename") {
+                            categoryToRename = category
+                            renamedCategoryName = category.name
+                            showingRenameCategoryAlert = true
+                        }
+                        Button("Delete", role: .destructive) {
+                            if category.name == "Uncategorized" {
+                                print("The 'Uncategorized' category cannot be deleted.")
+                            } else {
+                                categoryToDelete = category
+                                showingDeleteCategoryAlert = true
                             }
                         }
-                        .onTapGesture {
-                            selectedCategory = category
-                        }
+                    }
+                    .onTapGesture {
+                        selectedCategorySelection = .category(category)
+                    }
                 }
                 .onMove(perform: viewModel.reorderCategories)
                 .onDelete { indexSet in
@@ -341,7 +384,6 @@ struct CategoryListView: View {
             .listStyle(.sidebar)
             .navigationTitle("Categories")
             
-            // Improved toolbar with better styling
             HStack(spacing: 8) {
                 Button(action: {
                     showingAddCategoryAlert = true
@@ -354,21 +396,22 @@ struct CategoryListView: View {
                 .help("Add Category")
                 
                 Button(action: {
-                    if let selectedCategory = selectedCategory {
-                        if selectedCategory.name == "Uncategorized" {
+                    if let selectedCategorySelection = selectedCategorySelection,
+                       case .category(let category) = selectedCategorySelection {
+                        if category.name == "Uncategorized" {
                             print("The 'Uncategorized' category cannot be deleted via the toolbar button.")
                         } else {
-                            categoryToDelete = selectedCategory
+                            categoryToDelete = category
                             showingDeleteCategoryAlert = true
                         }
                     }
                 }) {
                     Image(systemName: "minus")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(selectedCategory == nil || selectedCategory?.name == "Uncategorized" ? .secondary : .primary)
+                        .foregroundColor(canDeleteSelectedCategory ? .primary : .secondary)
                 }
                 .buttonStyle(.borderless)
-                .disabled(selectedCategory == nil || selectedCategory?.name == "Uncategorized")
+                .disabled(!canDeleteSelectedCategory)
                 .help("Delete Category")
                 
                 Spacer()
@@ -394,8 +437,10 @@ struct CategoryListView: View {
                     return
                 }
                 viewModel.deleteCategory(categoryToDel)
-                if selectedCategory?.id == categoryToDel.id {
-                    selectedCategory = viewModel.categories.first
+                if let currentSelection = selectedCategorySelection,
+                   case .category(let selectedCategory) = currentSelection,
+                   selectedCategory.id == categoryToDel.id {
+                    selectedCategorySelection = .all
                 }
             }
             Button("Cancel", role: .cancel) { }
@@ -405,20 +450,28 @@ struct CategoryListView: View {
             return Text("Are you sure you want to delete the category \"\(categoryToDel.name)\"? This will permanently delete all \(promptCount) \(promptText) in this category. This action cannot be undone.")
         }
     }
+    
+    private var canDeleteSelectedCategory: Bool {
+        guard let selectedCategorySelection = selectedCategorySelection,
+              case .category(let category) = selectedCategorySelection else {
+            return false
+        }
+        return category.name != "Uncategorized"
+    }
 }
 
 // MARK: - PromptListView
 struct PromptListView: View {
     @ObservedObject var viewModel: PromptListViewModel
-    @Binding var promptToEdit: Prompt? // Bind to the state in ContentView
+    @Binding var promptToEdit: Prompt? 
     
     @State private var showingDeleteAlert = false
     @State private var promptToDelete: Prompt?
 
     var body: some View {
         VStack {
-            if let category = viewModel.selectedCategory {
-                Text("Prompts in \(category.name)")
+            if let categorySelection = viewModel.selectedCategorySelection {
+                Text(categorySelection.isAll ? "All Prompts" : "Prompts in \(categorySelection.displayName)")
                     .font(.headline)
                     .padding(.top)
                 
@@ -438,7 +491,6 @@ struct PromptListView: View {
                                 get: { prompt.enabled },
                                 set: { newValue in
                                     prompt.enabled = newValue
-                                    // No need to update trigger monitor here, onChange in ContentView handles it
                                 }
                             ))
                         }
@@ -455,7 +507,7 @@ struct PromptListView: View {
                                 Label("Delete Prompt", systemImage: "trash")
                             }
                         }
-                        .onTapGesture { // Allow tapping row for editing
+                        .onTapGesture { 
                             promptToEdit = prompt
                         }
                     }
@@ -483,6 +535,7 @@ struct PromptListView: View {
         }
     }
 }
+
 
 #Preview {
     ContentView(modelContext: try! ModelContainer(for: Prompt.self, Category.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)).mainContext)

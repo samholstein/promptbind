@@ -4,10 +4,15 @@ import Combine
 
 class PromptListViewModel: ObservableObject {
     @Published var prompts: [Prompt] = []
-    @Published var selectedCategory: Category? {
+    @Published var selectedCategorySelection: CategorySelection? {
         didSet {
             loadPrompts()
         }
+    }
+    
+    // Computed property for backward compatibility
+    var selectedCategory: Category? {
+        return selectedCategorySelection?.category
     }
     
     private var modelContext: ModelContext
@@ -23,15 +28,20 @@ class PromptListViewModel: ObservableObject {
             let descriptor = FetchDescriptor<Prompt>(sortBy: [SortDescriptor(\.trigger)])
             let allPrompts = try modelContext.fetch(descriptor)
             
-            if let category = selectedCategory {
-                self.prompts = allPrompts.filter { $0.category?.id == category.id }
+            if let categorySelection = selectedCategorySelection {
+                switch categorySelection {
+                case .all:
+                    self.prompts = allPrompts
+                case .category(let category):
+                    self.prompts = allPrompts.filter { $0.category?.id == category.id }
+                }
             } else {
                 // If no category is selected, show all prompts
                 self.prompts = allPrompts
             }
             
             // Debug logging to help track filtering
-            print("Selected category: \(selectedCategory?.name ?? "None")")
+            print("Selected category: \(selectedCategorySelection?.displayName ?? "None")")
             print("Total prompts: \(allPrompts.count)")
             print("Filtered prompts: \(self.prompts.count)")
         } catch {

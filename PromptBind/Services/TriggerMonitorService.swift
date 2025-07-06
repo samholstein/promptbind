@@ -15,9 +15,14 @@ class TriggerMonitorService: ObservableObject {
     
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+        loadAllPrompts()
+    }
+    
+    func loadAllPrompts() {
         do {
             let descriptor = FetchDescriptor<Prompt>()
             self.prompts = try modelContext.fetch(descriptor)
+            print("TriggerMonitor loaded \(self.prompts.count) prompts")
         } catch {
             print("Failed to fetch prompts: \(error)")
         }
@@ -25,7 +30,7 @@ class TriggerMonitorService: ObservableObject {
     
     @MainActor
     func updatePrompts(_ newPrompts: [Prompt]) {
-        self.prompts = newPrompts
+        loadAllPrompts()
     }
     
     nonisolated func startMonitoring() {
@@ -85,19 +90,15 @@ class TriggerMonitorService: ObservableObject {
             
             let currentText = currentBuffer.joined()
             
-            // Check for triggers
             for prompt in prompts where prompt.enabled {
                 if currentText.hasSuffix(prompt.trigger) {
-                    // Delete the trigger text
+                    print("Trigger matched: \(prompt.trigger) -> \(prompt.expansion)")
                     deleteCharacters(count: prompt.trigger.count)
                     
-                    // Insert the expansion
                     insertText(prompt.expansion)
                     
-                    // Clear buffer after expansion
                     currentBuffer = []
                     
-                    // Don't pass the last keystroke through
                     return nil
                 }
             }
@@ -109,7 +110,7 @@ class TriggerMonitorService: ObservableObject {
     nonisolated private func deleteCharacters(count: Int) {
         guard count > 0 else { return }
         
-        let deleteKey = CGKeyCode(51) // Delete key
+        let deleteKey = CGKeyCode(51)
         
         for _ in 0..<count {
             let deleteDown = CGEvent(keyboardEventSource: nil, virtualKey: deleteKey, keyDown: true)
@@ -121,12 +122,10 @@ class TriggerMonitorService: ObservableObject {
     }
     
     nonisolated private func insertText(_ text: String) {
-        // Use pasteboard for expansion insertion
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
         
-        // Simulate Cmd+V
         let cmdKeyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0x37, keyDown: true)
         let cmdKeyUp = CGEvent(keyboardEventSource: nil, virtualKey: 0x37, keyDown: false)
         let vKeyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0x09, keyDown: true)
