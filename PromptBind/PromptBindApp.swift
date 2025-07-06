@@ -36,6 +36,19 @@ struct PromptBindApp: App {
                     permissionCheckTimer = nil
                 }
         }
+        .commands {
+            CommandGroup(after: .importExport) {
+                Button("Export Data...") {
+                    NotificationCenter.default.post(name: .exportData, object: nil)
+                }
+                .keyboardShortcut("e", modifiers: [.command])
+                
+                Button("Import Data...") {
+                    NotificationCenter.default.post(name: .importData, object: nil)
+                }
+                .keyboardShortcut("i", modifiers: [.command])
+            }
+        }
     }
 
     private func checkAccessibilityPermission() {
@@ -49,4 +62,9 @@ struct PromptBindApp: App {
             permissionCheckTimer = nil
         }
     }
+}
+
+extension Notification.Name {
+    static let exportData = Notification.Name("exportData")
+    static let importData = Notification.Name("importData")
 }

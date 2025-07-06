@@ -21,10 +21,21 @@ struct ContentView: View {
     // For editing prompts
     @State private var promptToEdit: Prompt?
 
+    // For export/import
+    @State private var showingExportSuccessAlert = false
+    @State private var showingImportSuccessAlert = false
+    @State private var showingImportErrorAlert = false
+    @State private var exportSuccessMessage = ""
+    @State private var importSuccessMessage = ""
+    @State private var importErrorMessage = ""
+    
+    private var dataExportImportService: DataExportImportService
+
     init(modelContext: ModelContext) {
         _categoryListVM = StateObject(wrappedValue: CategoryListViewModel(modelContext: modelContext))
         _promptListVM = StateObject(wrappedValue: PromptListViewModel(modelContext: modelContext))
         _triggerMonitor = StateObject(wrappedValue: TriggerMonitorService(modelContext: modelContext))
+        dataExportImportService = DataExportImportService(modelContext: modelContext)
     }
     
     var body: some View {
@@ -107,6 +118,55 @@ struct ContentView: View {
         }, message: {
             Text("Enter the name for the new category.")
         })
+        .alert("Export Successful", isPresented: $showingExportSuccessAlert) {
+            Button("OK") { }
+        } message: {
+            Text(exportSuccessMessage)
+        }
+        .alert("Import Successful", isPresented: $showingImportSuccessAlert) {
+            Button("OK") { }
+        } message: {
+            Text(importSuccessMessage)
+        }
+        .alert("Import Error", isPresented: $showingImportErrorAlert) {
+            Button("OK") { }
+        } message: {
+            Text(importErrorMessage)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .exportData)) { _ in
+            handleExportData()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .importData)) { _ in
+            handleImportData()
+        }
+    }
+    
+    private func handleExportData() {
+        if let exportedURL = dataExportImportService.exportDataToJSONFile() {
+            exportSuccessMessage = "Data exported successfully to:\n\(exportedURL.path)"
+            showingExportSuccessAlert = true
+        } else {
+            importErrorMessage = "Failed to export data. Please try again."
+            showingImportErrorAlert = true
+        }
+    }
+    
+    private func handleImportData() {
+        let result = dataExportImportService.importDataFromJSONFile()
+        
+        switch result {
+        case .success(let categoriesAdded, let promptsAdded):
+            importSuccessMessage = "Import completed successfully!\n\nCategories added: \(categoriesAdded)\nPrompts added: \(promptsAdded)"
+            showingImportSuccessAlert = true
+            
+            // Refresh the view models
+            categoryListVM.loadCategories()
+            promptListVM.loadPrompts()
+            
+        case .failure(let error):
+            importErrorMessage = error.localizedDescription
+            showingImportErrorAlert = true
+        }
     }
 }
 
