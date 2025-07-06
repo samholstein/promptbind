@@ -298,9 +298,9 @@ struct CategoryListView: View {
     var body: some View {
         VStack(spacing: 0) { 
             List(selection: $selectedCategory) {
-                ForEach(viewModel.categories) { category in
+                ForEach(viewModel.categories, id: \.id) { category in
                     Text(category.name)
-                        .tag(category as Category?)
+                        .tag(category)
                         .contextMenu {
                             Button("Rename") {
                                 categoryToRename = category
@@ -315,6 +315,9 @@ struct CategoryListView: View {
                                     showingDeleteCategoryAlert = true
                                 }
                             }
+                        }
+                        .onTapGesture {
+                            selectedCategory = category
                         }
                 }
                 .onMove(perform: viewModel.reorderCategories)
