@@ -6,7 +6,7 @@ struct ContentView: View {
     
     @StateObject private var categoryListVM: CategoryListViewModel
     @StateObject private var promptListVM: PromptListViewModel
-    @StateObject private var triggerMonitor: TriggerMonitorService
+    var triggerMonitor: TriggerMonitorService?
     
     @State private var selectedCategorySelection: CategorySelection? {
         didSet {
@@ -30,11 +30,14 @@ struct ContentView: View {
     @State private var importErrorMessage = ""
     
     private var dataExportImportService: DataExportImportService
+    
+    // Window delegate for handling window close events
+    @StateObject private var windowDelegate = WindowDelegateWrapper()
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, triggerMonitor: TriggerMonitorService?) {
         _categoryListVM = StateObject(wrappedValue: CategoryListViewModel(modelContext: modelContext))
         _promptListVM = StateObject(wrappedValue: PromptListViewModel(modelContext: modelContext))
-        _triggerMonitor = StateObject(wrappedValue: TriggerMonitorService(modelContext: modelContext))
+        self.triggerMonitor = triggerMonitor
         dataExportImportService = DataExportImportService(modelContext: modelContext)
     }
     
@@ -68,8 +71,9 @@ struct ContentView: View {
                 .frame(minWidth: 500, idealWidth: 600, minHeight: 450) 
         }
         .onAppear {
-            triggerMonitor.startMonitoring()
-            triggerMonitor.updatePrompts(promptListVM.prompts)
+            setupWindowDelegate()
+            
+            triggerMonitor?.updatePrompts(promptListVM.prompts)
             if selectedCategorySelection == nil {
                 selectedCategorySelection = .all
             }
@@ -86,10 +90,11 @@ struct ContentView: View {
             }
         }
         .onDisappear {
-            triggerMonitor.stopMonitoring()
+            // Don't stop monitoring when the view disappears - we want it to continue in background
+            // triggerMonitor.stopMonitoring()
         }
         .onChange(of: promptListVM.prompts) { _, newPrompts in
-            triggerMonitor.updatePrompts(newPrompts)
+            triggerMonitor?.updatePrompts(newPrompts)
         }
         .onChange(of: categoryListVM.categories) { _, newCategories in
             if let currentSelection = selectedCategorySelection {
@@ -138,6 +143,18 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .importData)) { _ in
             handleImportData()
+        }
+    }
+    
+    private func setupWindowDelegate() {
+        DispatchQueue.main.async {
+            if let window = NSApplication.shared.windows.first {
+                window.delegate = windowDelegate.delegate
+                windowDelegate.delegate.onWindowWillClose = {
+                    // Notify that the window is being hidden
+                    NotificationCenter.default.post(name: .windowWillHide, object: nil)
+                }
+            }
         }
     }
     
@@ -581,8 +598,17 @@ struct PromptListView: View {
     }
 }
 
+// MARK: - WindowDelegateWrapper
+class WindowDelegateWrapper: ObservableObject {
+    let delegate = WindowDelegate()
+}
 
-#Preview {
-    ContentView(modelContext: try! ModelContainer(for: Prompt.self, Category.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)).mainContext)
-        .modelContainer(for: [Prompt.self, Category.self], inMemory: true)
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        let container = try! ModelContainer(for: Prompt.self, Category.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let triggerMonitor = TriggerMonitorService(modelContext: container.mainContext)
+        
+        return ContentView(modelContext: container.mainContext, triggerMonitor: triggerMonitor)
+            .modelContainer(for: [Prompt.self, Category.self], inMemory: true)
+    }
 }
