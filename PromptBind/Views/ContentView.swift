@@ -1,6 +1,33 @@
 import SwiftUI
 import CoreData
 
+// MARK: - Sidebar Selection Model
+enum SidebarSelection: Hashable {
+    case allPrompts
+    case category(NSManagedObjectID)
+    
+    static func == (lhs: SidebarSelection, rhs: SidebarSelection) -> Bool {
+        switch (lhs, rhs) {
+        case (.allPrompts, .allPrompts):
+            return true
+        case (.category(let lhsID), .category(let rhsID)):
+            return lhsID == rhsID
+        default:
+            return false
+        }
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .allPrompts:
+            hasher.combine("allPrompts")
+        case .category(let id):
+            hasher.combine("category")
+            hasher.combine(id)
+        }
+    }
+}
+
 struct ContentView: View {
     let viewContext: NSManagedObjectContext
     @EnvironmentObject private var coreDataStack: CoreDataStack
@@ -8,71 +35,91 @@ struct ContentView: View {
     @EnvironmentObject private var windowManager: WindowManager
     var triggerMonitor: TriggerMonitorService?
 
-    // State for selected category
-    @State private var selectedCategory: NSManagedObject?
+    // Updated selection state
+    @State private var selectedItem: SidebarSelection = .allPrompts
     @State private var showingAddPrompt = false
     
     // Fetch all categories, sorted by order then name
     @FetchRequest private var categories: FetchedResults<NSManagedObject>
+    
+    // Fetch all prompts for count display
+    @FetchRequest private var allPrompts: FetchedResults<NSManagedObject>
 
     init(viewContext: NSManagedObjectContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
         self.viewContext = viewContext
         self.triggerMonitor = triggerMonitor
         
-        // Initialize FetchRequest properly
-        let request = NSFetchRequest<NSManagedObject>(entityName: "Category")
-        request.sortDescriptors = [
+        // Initialize FetchRequest for categories
+        let categoryRequest = NSFetchRequest<NSManagedObject>(entityName: "Category")
+        categoryRequest.sortDescriptors = [
             NSSortDescriptor(key: "order", ascending: true),
             NSSortDescriptor(key: "name", ascending: true)
         ]
-        _categories = FetchRequest(fetchRequest: request)
+        _categories = FetchRequest(fetchRequest: categoryRequest)
+        
+        // Initialize FetchRequest for all prompts
+        let promptRequest = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
+        promptRequest.sortDescriptors = [NSSortDescriptor(key: "trigger", ascending: true)]
+        _allPrompts = FetchRequest(fetchRequest: promptRequest)
     }
     
     var body: some View {
         NavigationSplitView {
-            // Sidebar: Categories
+            // Sidebar: All Prompts + Categories
             VStack {
                 // CloudKit status bar at top of sidebar
                 cloudKitStatusBar
                 
-                // Categories list
-                List(selection: $selectedCategory) {
-                    ForEach(categories, id: \.objectID) { category in
-                        HStack {
-                            Text(category.categoryName)
-                                .font(.body)
-                            Spacer()
-                            Text("\(category.categoryPrompts.count)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.2))
-                                .clipShape(Capsule())
+                // Sidebar content
+                List(selection: $selectedItem) {
+                    // All Prompts section
+                    HStack {
+                        Image(systemName: "text.cursor")
+                            .foregroundColor(.blue)
+                            .frame(width: 16)
+                        Text("All Prompts")
+                            .font(.body)
+                        Spacer()
+                        Text("\(allPrompts.count)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.2))
+                            .clipShape(Capsule())
+                    }
+                    .tag(SidebarSelection.allPrompts)
+                    
+                    // Categories section
+                    if !categories.isEmpty {
+                        Section("Categories") {
+                            ForEach(categories, id: \.objectID) { category in
+                                HStack {
+                                    Image(systemName: "folder.fill")
+                                        .foregroundColor(.orange)
+                                        .frame(width: 16)
+                                    Text(category.categoryName)
+                                        .font(.body)
+                                    Spacer()
+                                    Text("\(category.categoryPrompts.count)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.secondary.opacity(0.2))
+                                        .clipShape(Capsule())
+                                }
+                                .tag(SidebarSelection.category(category.objectID))
+                            }
                         }
-                        .tag(category as NSManagedObject?)
                     }
                 }
                 .listStyle(.sidebar)
-                .navigationTitle("Categories")
+                .navigationTitle("PromptBind")
             }
         } detail: {
-            // Detail: Prompts for selected category
-            if let selected = selectedCategory {
-                PromptsListView(
-                    category: selected,
-                    viewContext: viewContext,
-                    windowManager: windowManager,
-                    categories: Array(categories)
-                )
-            } else {
-                // No category selected - show all prompts
-                AllPromptsView(
-                    viewContext: viewContext,
-                    windowManager: windowManager,
-                    categories: Array(categories)
-                )
-            }
+            // Detail: Show prompts based on selection
+            detailView
         }
         .onAppear {
             print("ContentView: onAppear called")
@@ -108,6 +155,45 @@ struct ContentView: View {
                 selectedCategory: selectedCategory,
                 categories: Array(categories)
             )
+        }
+    }
+    
+    // MARK: - Detail View
+    @ViewBuilder
+    private var detailView: some View {
+        switch selectedItem {
+        case .allPrompts:
+            AllPromptsView(
+                viewContext: viewContext,
+                windowManager: windowManager,
+                categories: Array(categories)
+            )
+        case .category(let categoryID):
+            if let category = categories.first(where: { $0.objectID == categoryID }) {
+                PromptsListView(
+                    category: category,
+                    viewContext: viewContext,
+                    windowManager: windowManager,
+                    categories: Array(categories)
+                )
+            } else {
+                // Fallback if category not found
+                AllPromptsView(
+                    viewContext: viewContext,
+                    windowManager: windowManager,
+                    categories: Array(categories)
+                )
+            }
+        }
+    }
+    
+    // MARK: - Helper Properties
+    private var selectedCategory: NSManagedObject? {
+        switch selectedItem {
+        case .allPrompts:
+            return nil
+        case .category(let categoryID):
+            return categories.first(where: { $0.objectID == categoryID })
         }
     }
     
@@ -226,6 +312,10 @@ struct PromptsListView: View {
             // Header
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
+                    Image(systemName: "folder.fill")
+                        .foregroundColor(.orange)
+                        .font(.title2)
+                    
                     Text(category.categoryName)
                         .font(.largeTitle)
                         .fontWeight(.bold)
@@ -326,6 +416,10 @@ struct AllPromptsView: View {
             // Header
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
+                    Image(systemName: "text.cursor")
+                        .foregroundColor(.blue)
+                        .font(.title2)
+                    
                     Text("All Prompts")
                         .font(.largeTitle)
                         .fontWeight(.bold)
@@ -387,6 +481,7 @@ struct AllPromptsView: View {
                                     .foregroundColor(.secondary)
                                 Spacer()
                             }
+                            .padding(.leading)
                         }
                     }
                     .listRowSeparator(.hidden)
