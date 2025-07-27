@@ -70,6 +70,9 @@ struct ContentView: View {
     @State private var selectedItem: SidebarSelection = .allPrompts
     @State private var showingAddPrompt = false
     
+    // Import/Export service
+    @StateObject private var importExportService: DataExportImportService
+    
     // Performance optimization: Limit fetch results
     @FetchRequest private var categories: FetchedResults<NSManagedObject>
     @FetchRequest private var allPrompts: FetchedResults<NSManagedObject>
@@ -80,6 +83,9 @@ struct ContentView: View {
     init(viewContext: NSManagedObjectContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
         self.viewContext = viewContext
         self.triggerMonitor = triggerMonitor
+        
+        // Initialize import/export service
+        self._importExportService = StateObject(wrappedValue: DataExportImportService(viewContext: viewContext))
         
         // Initialize FetchRequest for categories
         let categoryRequest = NSFetchRequest<NSManagedObject>(entityName: "Category")
@@ -201,6 +207,12 @@ struct ContentView: View {
             // Validate current selection is still valid
             validateCurrentSelection()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .exportData)) { _ in
+            importExportService.exportData()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .importData)) { _ in
+            importExportService.importData()
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: {
@@ -224,6 +236,18 @@ struct ContentView: View {
                 selectedCategory: selectedCategory,
                 categories: Array(categories)
             )
+        }
+        .alert("Import/Export Status", isPresented: .constant(importExportService.lastError != nil || importExportService.successMessage != nil)) {
+            Button("OK") {
+                importExportService.lastError = nil
+                importExportService.successMessage = nil
+            }
+        } message: {
+            if let error = importExportService.lastError {
+                Text(error.localizedDescription)
+            } else if let success = importExportService.successMessage {
+                Text(success)
+            }
         }
     }
     
@@ -319,38 +343,47 @@ struct ContentView: View {
         if !hasDefaultPrompts {
             print("ContentView: Adding default prompts...")
             await MainActor.run {
-                addDefaultPrompts()
+                Task {
+                    do {
+                        try await importExportService.loadDefaultPrompts()
+                        print("ContentView: Successfully loaded default prompts from JSON")
+                    } catch {
+                        print("ContentView: Error loading default prompts: \(error)")
+                        // Fallback to old method if JSON loading fails
+                        addFallbackDefaultPrompts()
+                    }
+                }
             }
         } else {
             print("ContentView: Default prompts already exist")
         }
     }
     
-    private func addDefaultPrompts() {
-        print("ContentView: Starting to add default prompts...")
+    private func addFallbackDefaultPrompts() {
+        print("ContentView: Starting to add fallback default prompts...")
         
         do {
             // Create default category using our extension
-            let uncategorizedCategory = viewContext.createCategory(name: "Uncategorized", order: 0)
+            let uncategorizedCategory = viewContext.createCategory(name: "Quick Responses", order: 0)
             
-            print("ContentView: Created Uncategorized category")
+            print("ContentView: Created Quick Responses category")
             
             // Create test prompt using our extension
             let testPrompt = viewContext.createPrompt(
-                trigger: "test",
-                expansion: "This is a test prompt",
+                trigger: "thanks",
+                expansion: "Thank you for your time and consideration. I look forward to hearing from you soon.",
                 enabled: true,
                 category: uncategorizedCategory
             )
             
-            print("ContentView: Created test prompt")
+            print("ContentView: Created thanks prompt")
             
             // Save to Core Data (and CloudKit automatically)
             try viewContext.save()
-            print("ContentView: Successfully saved default prompts to Core Data")
+            print("ContentView: Successfully saved fallback default prompts to Core Data")
             
         } catch {
-            print("ContentView: Error saving default prompts: \(error)")
+            print("ContentView: Error saving fallback default prompts: \(error)")
             print("ContentView: Error details: \(error.localizedDescription)")
             if let coreDataError = error as NSError? {
                 print("ContentView: Core Data error code: \(coreDataError.code)")
