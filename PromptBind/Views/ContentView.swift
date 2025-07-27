@@ -10,6 +10,7 @@ struct ContentView: View {
 
     // State for selected category
     @State private var selectedCategory: NSManagedObject?
+    @State private var showingAddPrompt = false
     
     // Fetch all categories, sorted by order then name
     @FetchRequest private var categories: FetchedResults<NSManagedObject>
@@ -61,13 +62,15 @@ struct ContentView: View {
                 PromptsListView(
                     category: selected,
                     viewContext: viewContext,
-                    windowManager: windowManager
+                    windowManager: windowManager,
+                    categories: Array(categories)
                 )
             } else {
                 // No category selected - show all prompts
                 AllPromptsView(
                     viewContext: viewContext,
-                    windowManager: windowManager
+                    windowManager: windowManager,
+                    categories: Array(categories)
                 )
             }
         }
@@ -77,6 +80,10 @@ struct ContentView: View {
             Task {
                 await handleDefaultPrompts()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)) { _ in
+            // Update trigger monitor when prompts change
+            triggerMonitor?.loadAllPrompts()
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -88,13 +95,19 @@ struct ContentView: View {
                 .help("Settings")
                 
                 Button(action: {
-                    // TODO: Implement add prompt functionality
-                    print("Add prompt button tapped")
+                    showingAddPrompt = true
                 }) {
                     Label("Add Prompt", systemImage: "plus")
                 }
                 .help("Add new prompt")
             }
+        }
+        .sheet(isPresented: $showingAddPrompt) {
+            AddPromptSheet(
+                viewContext: viewContext,
+                selectedCategory: selectedCategory,
+                categories: Array(categories)
+            )
         }
     }
     
@@ -188,14 +201,19 @@ struct PromptsListView: View {
     let category: NSManagedObject
     let viewContext: NSManagedObjectContext
     let windowManager: WindowManager
+    let categories: [NSManagedObject]
+    
+    @State private var showingAddPrompt = false
+    @State private var editingPrompt: NSManagedObject?
     
     // Fetch prompts for this category
     @FetchRequest private var prompts: FetchedResults<NSManagedObject>
     
-    init(category: NSManagedObject, viewContext: NSManagedObjectContext, windowManager: WindowManager) {
+    init(category: NSManagedObject, viewContext: NSManagedObjectContext, windowManager: WindowManager, categories: [NSManagedObject]) {
         self.category = category
         self.viewContext = viewContext
         self.windowManager = windowManager
+        self.categories = categories
         
         let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
         request.predicate = NSPredicate(format: "category == %@", category)
@@ -207,9 +225,18 @@ struct PromptsListView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             VStack(alignment: .leading, spacing: 8) {
-                Text(category.categoryName)
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                HStack {
+                    Text(category.categoryName)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    
+                    Spacer()
+                    
+                    Button("Add Prompt") {
+                        showingAddPrompt = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
                 
                 Text("\(prompts.count) prompt\(prompts.count == 1 ? "" : "s")")
                     .font(.subheadline)
@@ -236,8 +263,7 @@ struct PromptsListView: View {
                         .foregroundColor(.secondary)
                     
                     Button("Add Prompt") {
-                        // TODO: Implement add prompt
-                        print("Add prompt from empty state")
+                        showingAddPrompt = true
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -245,13 +271,31 @@ struct PromptsListView: View {
                 .background(Color(.controlBackgroundColor).opacity(0.5))
             } else {
                 List(prompts, id: \.objectID) { prompt in
-                    PromptRowView(prompt: prompt)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
+                    PromptRowView(prompt: prompt) {
+                        editingPrompt = prompt
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
                 .listStyle(.plain)
             }
         }
+        .sheet(isPresented: $showingAddPrompt) {
+            AddPromptSheet(
+                viewContext: viewContext,
+                selectedCategory: category,
+                categories: categories
+            )
+        }
+        .background(
+            ManagedObjectSheetBinding(item: $editingPrompt) { prompt in
+                EditPromptSheet(
+                    viewContext: viewContext,
+                    prompt: prompt,
+                    categories: categories
+                )
+            }
+        )
     }
 }
 
@@ -259,13 +303,18 @@ struct PromptsListView: View {
 struct AllPromptsView: View {
     let viewContext: NSManagedObjectContext
     let windowManager: WindowManager
+    let categories: [NSManagedObject]
+    
+    @State private var showingAddPrompt = false
+    @State private var editingPrompt: NSManagedObject?
     
     // Fetch all prompts
     @FetchRequest private var allPrompts: FetchedResults<NSManagedObject>
     
-    init(viewContext: NSManagedObjectContext, windowManager: WindowManager) {
+    init(viewContext: NSManagedObjectContext, windowManager: WindowManager, categories: [NSManagedObject]) {
         self.viewContext = viewContext
         self.windowManager = windowManager
+        self.categories = categories
         
         let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
         request.sortDescriptors = [NSSortDescriptor(key: "trigger", ascending: true)]
@@ -276,9 +325,18 @@ struct AllPromptsView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             VStack(alignment: .leading, spacing: 8) {
-                Text("All Prompts")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                HStack {
+                    Text("All Prompts")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                    
+                    Spacer()
+                    
+                    Button("Add Prompt") {
+                        showingAddPrompt = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
                 
                 Text("\(allPrompts.count) prompt\(allPrompts.count == 1 ? "" : "s")")
                     .font(.subheadline)
@@ -305,8 +363,7 @@ struct AllPromptsView: View {
                         .foregroundColor(.secondary)
                     
                     Button("Add Prompt") {
-                        // TODO: Implement add prompt
-                        print("Add prompt from empty state")
+                        showingAddPrompt = true
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -315,7 +372,9 @@ struct AllPromptsView: View {
             } else {
                 List(allPrompts, id: \.objectID) { prompt in
                     VStack(alignment: .leading, spacing: 4) {
-                        PromptRowView(prompt: prompt)
+                        PromptRowView(prompt: prompt) {
+                            editingPrompt = prompt
+                        }
                         
                         // Show category name for context
                         if let category = prompt.promptCategory {
@@ -336,12 +395,29 @@ struct AllPromptsView: View {
                 .listStyle(.plain)
             }
         }
+        .sheet(isPresented: $showingAddPrompt) {
+            AddPromptSheet(
+                viewContext: viewContext,
+                selectedCategory: nil,
+                categories: categories
+            )
+        }
+        .background(
+            ManagedObjectSheetBinding(item: $editingPrompt) { prompt in
+                EditPromptSheet(
+                    viewContext: viewContext,
+                    prompt: prompt,
+                    categories: categories
+                )
+            }
+        )
     }
 }
 
 /// Individual prompt row component
 struct PromptRowView: View {
     let prompt: NSManagedObject
+    let onEdit: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -359,6 +435,14 @@ struct PromptRowView: View {
                         .foregroundColor(.secondary)
                         .help("Disabled")
                 }
+                
+                // Edit button
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .foregroundColor(.blue)
+                }
+                .buttonStyle(.plain)
+                .help("Edit prompt")
             }
             
             // Expansion text

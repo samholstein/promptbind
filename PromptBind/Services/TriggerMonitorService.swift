@@ -31,6 +31,7 @@ class TriggerMonitorService: ObservableObject {
     @MainActor
     func updatePrompts(_ newPrompts: [NSManagedObject]) {
         loadAllPrompts()
+        print("TriggerMonitor: Prompts updated, reloaded \(self.prompts.count) prompts")
     }
     
     nonisolated func startMonitoring() {
