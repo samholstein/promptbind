@@ -35,6 +35,8 @@ struct ContentView: View {
     // Window delegate for handling window close events
     @StateObject private var windowDelegate = WindowDelegateWrapper()
 
+    @State private var showingSettingsSheet = false
+    
     init(modelContext: ModelContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
         _categoryListVM = StateObject(wrappedValue: CategoryListViewModel(modelContext: modelContext))
         _promptListVM = StateObject(wrappedValue: PromptListViewModel(modelContext: modelContext))
@@ -47,30 +49,47 @@ struct ContentView: View {
             CategoryListView(viewModel: categoryListVM, selectedCategorySelection: $selectedCategorySelection, showingAddCategoryAlert: $showingAddCategoryAlert)
         } detail: {
             VStack {
-                // CloudKit status bar
-                HStack {
-                    if cloudKitService.isSignedIn {
-                        Image(systemName: "icloud")
-                            .foregroundColor(.blue)
-                        Text("Synced with iCloud")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Image(systemName: "icloud.slash")
-                            .foregroundColor(.orange)
-                        Text("Not signed into iCloud - data stored locally only")
-                            .font(.caption)
+                // CloudKit status bar - make it clickable
+                Button(action: {
+                    showingSettingsSheet = true
+                }) {
+                    HStack {
+                        if cloudKitService.isSignedIn {
+                            Image(systemName: "icloud")
+                                .foregroundColor(.blue)
+                            Text("Synced with iCloud")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Image(systemName: "icloud.slash")
+                                .foregroundColor(.orange)
+                            Text("Not signed into iCloud - data stored locally only")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                     }
-                    Spacer()
+                    .padding(.horizontal)
+                    .padding(.vertical, 4)
+                    .background(cloudKitService.isSignedIn ? Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 4)
-                .background(cloudKitService.isSignedIn ? Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
+                .buttonStyle(.plain)
+                .help("Click to open Settings")
                 
                 PromptListView(viewModel: promptListVM, promptToEdit: $promptToEdit)
                     .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
+                        ToolbarItemGroup(placement: .primaryAction) {
+                            Button(action: {
+                                showingSettingsSheet = true
+                            }) {
+                                Label("Settings", systemImage: "gear")
+                            }
+                            .help("Settings")
+                            
                             Button(action: {
                                 if promptListVM.selectedCategory != nil || selectedCategorySelection?.isAll == true || !categoryListVM.categories.isEmpty {
                                     showingAddPromptSheet = true
@@ -82,6 +101,7 @@ struct ContentView: View {
                             }
                             .disabled(selectedCategorySelection == nil && categoryListVM.categories.isEmpty)
                             .keyboardShortcut("n", modifiers: .command)
+                            .help("Add new prompt")
                         }
                     }
             }
@@ -93,6 +113,10 @@ struct ContentView: View {
         .sheet(item: $promptToEdit) { prompt in
             EditPromptView(viewModel: promptListVM, prompt: prompt, categoryListVM: categoryListVM)
                 .frame(minWidth: 500, idealWidth: 600, minHeight: 450) 
+        }
+        .sheet(isPresented: $showingSettingsSheet) {
+            SettingsView()
+                .environmentObject(cloudKitService)
         }
         .onAppear {
             print("ContentView: onAppear called")
@@ -162,6 +186,9 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .importData)) { _ in
             handleImportData()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
+            showingSettingsSheet = true
         }
     }
     

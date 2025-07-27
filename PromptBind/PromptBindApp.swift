@@ -99,6 +99,13 @@ struct PromptBindApp: App {
                     NotificationCenter.default.post(name: .importData, object: nil)
                 }
                 .keyboardShortcut("i", modifiers: [.command])
+                
+                Divider()
+                
+                Button("Settings...") {
+                    NotificationCenter.default.post(name: .showSettings, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: [.command])
             }
         }
         .defaultSize(width: 800, height: 600)
@@ -201,4 +208,5 @@ extension Notification.Name {
     static let exportData = Notification.Name("exportData")
     static let importData = Notification.Name("importData")
     static let windowWillHide = Notification.Name("windowWillHide")
+    static let showSettings = Notification.Name("showSettings")
 }
