@@ -5,6 +5,7 @@ import AppKit // Required for AXIsProcessTrusted
 @main
 struct PromptBindApp: App {
     let container: ModelContainer
+    @StateObject private var cloudKitService = CloudKitService()
     
     @State private var showingAccessibilityPermissionSheet = false
     @State private var permissionCheckTimer: Timer?
@@ -16,16 +17,22 @@ struct PromptBindApp: App {
 
     init() {
         do {
-            container = try ModelContainer(for: Prompt.self, Category.self)
+            // Try to configure ModelContainer with CloudKit support
+            // First, let's try the basic configuration and see what's available
+            let configuration = ModelConfiguration()
+            container = try ModelContainer(for: Prompt.self, Category.self, configurations: configuration)
+            print("Successfully initialized ModelContainer")
         } catch {
+            print("Failed to create ModelContainer: \(error)")
             fatalError("Failed to create ModelContainer: \(error)")
         }
     }
     
     var body: some Scene {
         WindowGroup {
-            ContentView(modelContext: container.mainContext, triggerMonitor: triggerMonitor)
+            ContentView(modelContext: container.mainContext, triggerMonitor: triggerMonitor, cloudKitService: cloudKitService)
                 .modelContainer(container)
+                .environmentObject(cloudKitService)
                 .sheet(isPresented: $showingAccessibilityPermissionSheet) {
                     AccessibilityPermissionView()
                 }

@@ -6,6 +6,7 @@ struct ContentView: View {
     
     @StateObject private var categoryListVM: CategoryListViewModel
     @StateObject private var promptListVM: PromptListViewModel
+    @EnvironmentObject private var cloudKitService: CloudKitService
     var triggerMonitor: TriggerMonitorService?
     
     @State private var selectedCategorySelection: CategorySelection? {
@@ -34,7 +35,7 @@ struct ContentView: View {
     // Window delegate for handling window close events
     @StateObject private var windowDelegate = WindowDelegateWrapper()
 
-    init(modelContext: ModelContext, triggerMonitor: TriggerMonitorService?) {
+    init(modelContext: ModelContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
         _categoryListVM = StateObject(wrappedValue: CategoryListViewModel(modelContext: modelContext))
         _promptListVM = StateObject(wrappedValue: PromptListViewModel(modelContext: modelContext))
         self.triggerMonitor = triggerMonitor
@@ -45,22 +46,45 @@ struct ContentView: View {
         NavigationSplitView {
             CategoryListView(viewModel: categoryListVM, selectedCategorySelection: $selectedCategorySelection, showingAddCategoryAlert: $showingAddCategoryAlert)
         } detail: {
-            PromptListView(viewModel: promptListVM, promptToEdit: $promptToEdit)
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button(action: {
-                            if promptListVM.selectedCategory != nil || selectedCategorySelection?.isAll == true || !categoryListVM.categories.isEmpty {
-                                showingAddPromptSheet = true
-                            } else {
-                                print("No category selected and no categories exist to add prompt to.")
-                            }
-                        }) {
-                            Label("Add Prompt", systemImage: "plus")
-                        }
-                        .disabled(selectedCategorySelection == nil && categoryListVM.categories.isEmpty)
-                        .keyboardShortcut("n", modifiers: .command)
+            VStack {
+                // CloudKit status bar
+                HStack {
+                    if cloudKitService.isSignedIn {
+                        Image(systemName: "icloud")
+                            .foregroundColor(.blue)
+                        Text("Synced with iCloud")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Image(systemName: "icloud.slash")
+                            .foregroundColor(.orange)
+                        Text("Not signed into iCloud - data stored locally only")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
+                    Spacer()
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+                .background(cloudKitService.isSignedIn ? Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
+                
+                PromptListView(viewModel: promptListVM, promptToEdit: $promptToEdit)
+                    .toolbar {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button(action: {
+                                if promptListVM.selectedCategory != nil || selectedCategorySelection?.isAll == true || !categoryListVM.categories.isEmpty {
+                                    showingAddPromptSheet = true
+                                } else {
+                                    print("No category selected and no categories exist to add prompt to.")
+                                }
+                            }) {
+                                Label("Add Prompt", systemImage: "plus")
+                            }
+                            .disabled(selectedCategorySelection == nil && categoryListVM.categories.isEmpty)
+                            .keyboardShortcut("n", modifiers: .command)
+                        }
+                    }
+            }
         }
         .sheet(isPresented: $showingAddPromptSheet) {
             AddPromptView(viewModel: promptListVM, selectedCategorySelection: $selectedCategorySelection, categoryListVM: categoryListVM)
@@ -78,15 +102,9 @@ struct ContentView: View {
                 selectedCategorySelection = .all
             }
 
-            // Check if default prompts have been added before
-            if !UserDefaults.standard.bool(forKey: "hasAddedDefaultPrompts") {
-                // Add default prompts if none exist
-                if promptListVM.prompts.isEmpty {
-                    DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
-                    promptListVM.loadPrompts() // Reload prompts after adding defaults
-                    // Set flag to true after adding defaults
-                    UserDefaults.standard.set(true, forKey: "hasAddedDefaultPrompts")
-                }
+            // Handle default prompts with CloudKit
+            Task {
+                await handleDefaultPrompts()
             }
         }
         .onDisappear {
@@ -154,6 +172,42 @@ struct ContentView: View {
                     // Notify that the window is being hidden
                     NotificationCenter.default.post(name: .windowWillHide, object: nil)
                 }
+            }
+        }
+    }
+    
+    private func handleDefaultPrompts() async {
+        // Wait for CloudKit account status to be determined
+        if cloudKitService.accountStatus == .couldNotDetermine {
+            // Wait a bit for status to be determined
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        }
+        
+        if cloudKitService.isSignedIn {
+            // User is signed into iCloud - check CloudKit flag
+            let hasAddedDefaults = await cloudKitService.hasAddedDefaultPrompts()
+            print("ContentView: CloudKit user - hasAddedDefaultPrompts = \(hasAddedDefaults)")
+            
+            if !hasAddedDefaults {
+                print("ContentView: Adding default prompts for iCloud user...")
+                DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
+                await MainActor.run {
+                    promptListVM.loadPrompts()
+                }
+                await cloudKitService.markDefaultPromptsAsAdded()
+                print("ContentView: Default prompts added for iCloud user")
+            }
+        } else {
+            // User not signed into iCloud - use local UserDefaults
+            let hasAddedDefaults = UserDefaults.standard.bool(forKey: "hasAddedDefaultPrompts")
+            print("ContentView: Local user - hasAddedDefaultPrompts = \(hasAddedDefaults)")
+            
+            if !hasAddedDefaults {
+                print("ContentView: Adding default prompts for local user...")
+                DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
+                promptListVM.loadPrompts()
+                UserDefaults.standard.set(true, forKey: "hasAddedDefaultPrompts")
+                print("ContentView: Default prompts added for local user")
             }
         }
     }
@@ -608,7 +662,7 @@ struct ContentView_Previews: PreviewProvider {
         let container = try! ModelContainer(for: Prompt.self, Category.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let triggerMonitor = TriggerMonitorService(modelContext: container.mainContext)
         
-        return ContentView(modelContext: container.mainContext, triggerMonitor: triggerMonitor)
+        return ContentView(modelContext: container.mainContext, triggerMonitor: triggerMonitor, cloudKitService: CloudKitService())
             .modelContainer(for: [Prompt.self, Category.self], inMemory: true)
     }
 }
