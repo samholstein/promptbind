@@ -277,10 +277,10 @@ struct SettingsView: View {
     private func createBasicDefault() async {
         do {
             let context = coreDataStack.viewContext
-            let defaultCategory = context.createCategory(name: "Quick Responses", order: 0)
+            let defaultCategory = context.createCategory(name: "AI Assistant Prompts", order: 0)
             let defaultPrompt = context.createPrompt(
-                trigger: "thanks",
-                expansion: "Thank you for your time and consideration.",
+                trigger: "review codebase",
+                expansion: "Please review this codebase and describe its overall functionality to me.",
                 enabled: true,
                 category: defaultCategory
             )

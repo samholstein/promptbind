@@ -3,171 +3,67 @@
   "exportDate": "2024-01-01T00:00:00Z",
   "categories": [
     {
-      "id": "common-phrases",
-      "name": "Common Phrases",
+      "id": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000",
+      "name": "AI Assistant Prompts",
       "order": 0
-    },
-    {
-      "id": "contact-info",
-      "name": "Contact Info",
-      "order": 1
-    },
-    {
-      "id": "email-templates",
-      "name": "Email Templates",
-      "order": 2
-    },
-    {
-      "id": "programming",
-      "name": "Programming",
-      "order": 3
-    },
-    {
-      "id": "quick-responses",
-      "name": "Quick Responses",
-      "order": 4
     }
   ],
   "prompts": [
     {
-      "id": "addr",
-      "trigger": "addr",
-      "prompt": "123 Main Street\nAnytown, ST 12345",
+      "id": "review-codebase",
+      "trigger": "review codebase",
+      "prompt": "Please review this codebase and describe its overall functionality to me.",
       "enabled": true,
-      "categoryId": "contact-info"
+      "categoryId": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000"
     },
     {
-      "id": "email",
-      "trigger": "email",
-      "prompt": "your.email@example.com",
+      "id": "vibe-coding-no-new-features",
+      "trigger": "vibe coding: no new features",
+      "prompt": "Do not implement new features or develop workarounds/fallbacks for current features without my approval first.",
       "enabled": true,
-      "categoryId": "contact-info"
+      "categoryId": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000"
     },
     {
-      "id": "phone",
-      "trigger": "phone",
-      "prompt": "(555) 123-4567",
+      "id": "prompt-for-testing",
+      "trigger": "prompt for testing",
+      "prompt": "Please stop and prompt me to test the app whenever you need testing, instead of proceeding on your own.",
       "enabled": true,
-      "categoryId": "contact-info"
+      "categoryId": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000"
     },
     {
-      "id": "thanks",
-      "trigger": "thanks",
-      "prompt": "Thank you for your time and consideration. I look forward to hearing from you soon.",
+      "id": "summarize-section",
+      "trigger": "summarize section",
+      "prompt": "Summarize the following text segment in a concise, high-level overview.",
       "enabled": true,
-      "categoryId": "common-phrases"
+      "categoryId": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000"
     },
     {
-      "id": "regards",
-      "trigger": "regards",
-      "prompt": "Best regards,\n[Your Name]",
+      "id": "generate-unit-tests",
+      "trigger": "generate unit tests",
+      "prompt": "Generate appropriate unit tests for the following code segment.",
       "enabled": true,
-      "categoryId": "common-phrases"
+      "categoryId": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000"
     },
     {
-      "id": "followup",
-      "trigger": "followup",
-      "prompt": "Hi there,\n\nI wanted to follow up on our previous conversation. Do you have any updates on this?\n\nThanks!",
+      "id": "refactor-request",
+      "trigger": "refactor request",
+      "prompt": "Suggest refactoring improvements to make this code more readable and maintainable.",
       "enabled": true,
-      "categoryId": "email-templates"
+      "categoryId": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000"
     },
     {
-      "id": "meeting",
-      "trigger": "meeting",
-      "prompt": "Hi,\n\nWould you be available for a quick meeting this week to discuss this further? I'm flexible with timing.\n\nBest,",
+      "id": "explain-concept",
+      "trigger": "explain concept",
+      "prompt": "Explain the key concepts in this text as if teaching a junior developer.",
       "enabled": true,
-      "categoryId": "email-templates"
+      "categoryId": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000"
     },
     {
-      "id": "sorry",
-      "trigger": "sorry",
-      "prompt": "I apologize for the delayed response. I've been quite busy, but I wanted to get back to you.",
+      "id": "translate-to-docs",
+      "trigger": "translate to docs",
+      "prompt": "Translate this selected code/text into user-friendly documentation style.",
       "enabled": true,
-      "categoryId": "common-phrases"
-    },
-    {
-      "id": "schedule",
-      "trigger": "schedule",
-      "prompt": "Let me check my calendar and get back to you with some available times.",
-      "enabled": true,
-      "categoryId": "quick-responses"
-    },
-    {
-      "id": "working",
-      "trigger": "working",
-      "prompt": "I'm currently working on this and will have an update for you by [DATE].",
-      "enabled": true,
-      "categoryId": "quick-responses"
-    },
-    {
-      "id": "console",
-      "trigger": "console",
-      "prompt": "console.log();",
-      "enabled": true,
-      "categoryId": "programming"
-    },
-    {
-      "id": "function",
-      "trigger": "function",
-      "prompt": "function functionName() {\n    // Your code here\n}",
-      "enabled": true,
-      "categoryId": "programming"
-    },
-    {
-      "id": "comment",
-      "trigger": "comment",
-      "prompt": "// TODO: Add implementation",
-      "enabled": true,
-      "categoryId": "programming"
-    },
-    {
-      "id": "lorem",
-      "trigger": "lorem",
-      "prompt": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-      "enabled": true,
-      "categoryId": "common-phrases"
-    },
-    {
-      "id": "signature",
-      "trigger": "sig",
-      "prompt": "Best regards,\n\n[Your Name]\n[Your Title]\n[Your Company]\n[Your Email]\n[Your Phone]",
-      "enabled": true,
-      "categoryId": "email-templates"
-    },
-    {
-      "id": "fyi",
-      "trigger": "fyi",
-      "prompt": "FYI - thought you might find this interesting/useful.",
-      "enabled": true,
-      "categoryId": "quick-responses"
-    },
-    {
-      "id": "asap",
-      "trigger": "asap",
-      "prompt": "Please let me know as soon as possible. This is time-sensitive.",
-      "enabled": true,
-      "categoryId": "quick-responses"
-    },
-    {
-      "id": "lmk",
-      "trigger": "lmk",
-      "prompt": "Let me know if you have any questions or need any clarification.",
-      "enabled": true,
-      "categoryId": "quick-responses"
-    },
-    {
-      "id": "ooo",
-      "trigger": "ooo",
-      "prompt": "I'm currently out of office and will respond to your message when I return on [DATE]. For urgent matters, please contact [CONTACT].",
-      "enabled": true,
-      "categoryId": "email-templates"
-    },
-    {
-      "id": "ack",
-      "trigger": "ack",
-      "prompt": "Got it, thanks! I'll take care of this.",
-      "enabled": true,
-      "categoryId": "quick-responses"
+      "categoryId": "9BEF25ED-2B34-486E-BDD8-53D1ADCD1000"
     }
   ]
 }

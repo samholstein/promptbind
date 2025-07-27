@@ -69,6 +69,8 @@ struct ContentView: View {
     // Updated selection state with persistence
     @State private var selectedItem: SidebarSelection = .allPrompts
     @State private var showingAddPrompt = false
+    @State private var showingAddCategory = false
+    @State private var editingCategory: NSManagedObject?
     
     // Import/Export service
     @StateObject private var importExportService: DataExportImportService
@@ -137,33 +139,55 @@ struct ContentView: View {
                     .listRowSeparator(.hidden)
                     
                     // Categories section
-                    if !categories.isEmpty {
-                        Section {
-                            ForEach(categories, id: \.objectID) { category in
-                                SidebarRowView(
-                                    icon: "folder.fill",
-                                    iconColor: .orange,
-                                    title: category.categoryName,
-                                    count: category.categoryPrompts.count,
-                                    isSelected: selectedItem == .category(category.objectID)
-                                )
-                                .tag(SidebarSelection.category(category.objectID))
-                                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
-                                .listRowSeparator(.hidden)
-                            }
-                        } header: {
-                            HStack {
-                                Text("Categories")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.secondary)
-                                    .textCase(.uppercase)
+                    Section {
+                        ForEach(categories, id: \.objectID) { category in
+                            SidebarCategoryRowView(
+                                category: category,
+                                isSelected: selectedItem == .category(category.objectID),
+                                onEdit: {
+                                    editingCategory = category
+                                }
+                            )
+                            .tag(SidebarSelection.category(category.objectID))
+                            .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                            .listRowSeparator(.hidden)
+                        }
+                        
+                        // Add Category button
+                        Button(action: {
+                            showingAddCategory = true
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "plus.circle")
+                                    .foregroundColor(.blue)
+                                    .frame(width: 18, height: 18)
+                                    .font(.system(size: 14, weight: .medium))
+                                
+                                Text("Add Category")
+                                    .font(.body)
+                                    .foregroundColor(.blue)
+                                
                                 Spacer()
                             }
+                            .padding(.vertical, 4)
                             .padding(.horizontal, 8)
-                            .padding(.top, 16)
-                            .padding(.bottom, 4)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                        .listRowSeparator(.hidden)
+                    } header: {
+                        HStack {
+                            Text("Categories")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.top, 16)
+                        .padding(.bottom, 4)
                     }
                 }
                 .listStyle(.sidebar)
@@ -237,6 +261,21 @@ struct ContentView: View {
                 categories: Array(categories)
             )
         }
+        .sheet(isPresented: $showingAddCategory) {
+            AddCategorySheet(
+                viewContext: viewContext,
+                existingCategories: Array(categories)
+            )
+        }
+        .background(
+            ManagedObjectSheetBinding(item: $editingCategory) { category in
+                EditCategorySheet(
+                    viewContext: viewContext,
+                    category: category,
+                    existingCategories: Array(categories)
+                )
+            }
+        )
         .alert("Import/Export Status", isPresented: .constant(importExportService.lastError != nil || importExportService.successMessage != nil)) {
             Button("OK") {
                 importExportService.lastError = nil
@@ -768,6 +807,71 @@ struct SidebarRowView: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title), \(count) prompt\(count == 1 ? "" : "s")")
+        .accessibilityHint(isSelected ? "Currently selected" : "Tap to view prompts")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+/// Enhanced sidebar row component for categories with edit functionality
+struct SidebarCategoryRowView: View {
+    let category: NSManagedObject
+    let isSelected: Bool
+    let onEdit: () -> Void
+    
+    @State private var isHovering = false
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            Image(systemName: "folder.fill")
+                .foregroundColor(.orange)
+                .frame(width: 18, height: 18)
+                .font(.system(size: 14, weight: .medium))
+                .accessibilityHidden(true)
+            
+            // Title
+            Text(category.categoryName)
+                .font(.body)
+                .fontWeight(isSelected ? .medium : .regular)
+                .foregroundColor(isSelected ? .primary : .primary)
+            
+            Spacer()
+            
+            // Edit button (shown on hover or when selected)
+            if isHovering || isSelected {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Edit category")
+            }
+            
+            // Count badge
+            Text("\(category.categoryPrompts.count)")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(isSelected ? .white : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.2))
+                )
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(category.categoryName), \(category.categoryPrompts.count) prompt\(category.categoryPrompts.count == 1 ? "" : "s")")
         .accessibilityHint(isSelected ? "Currently selected" : "Tap to view prompts")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
