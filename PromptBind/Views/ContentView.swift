@@ -5,9 +5,8 @@ struct ContentView: View {
     let viewContext: NSManagedObjectContext
     @EnvironmentObject private var coreDataStack: CoreDataStack
     @EnvironmentObject private var cloudKitService: CloudKitService
+    @EnvironmentObject private var windowManager: WindowManager
     var triggerMonitor: TriggerMonitorService?
-    
-    @State private var showingSettingsSheet = false
 
     init(viewContext: NSManagedObjectContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
         self.viewContext = viewContext
@@ -22,7 +21,7 @@ struct ContentView: View {
             VStack {
                 // CloudKit status bar
                 Button(action: {
-                    showingSettingsSheet = true
+                    windowManager.openSettingsWindow()
                 }) {
                     HStack {
                         if coreDataStack.isCloudKitReady && coreDataStack.cloudKitError == nil {
@@ -60,7 +59,7 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button(action: {
-                        showingSettingsSheet = true
+                        windowManager.openSettingsWindow()
                     }) {
                         Label("Settings", systemImage: "gear")
                     }
@@ -75,20 +74,12 @@ struct ContentView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingSettingsSheet) {
-            SettingsView()
-                .environmentObject(cloudKitService)
-                .environmentObject(coreDataStack)
-        }
         .onAppear {
             print("ContentView: onAppear called")
             
             Task {
                 await handleDefaultPrompts()
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
-            showingSettingsSheet = true
         }
     }
     
@@ -156,5 +147,6 @@ struct ContentView_Previews: PreviewProvider {
         )
         .environmentObject(coreDataStack)
         .environmentObject(CloudKitService())
+        .environmentObject(WindowManager.shared)
     }
 }

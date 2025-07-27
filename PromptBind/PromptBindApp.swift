@@ -6,6 +6,7 @@ import AppKit // Required for AXIsProcessTrusted
 struct PromptBindApp: App {
     @StateObject private var coreDataStack = CoreDataStack.shared
     @StateObject private var cloudKitService = CloudKitService()
+    @StateObject private var windowManager = WindowManager.shared
     
     @State private var showingAccessibilityPermissionSheet = false
     @State private var permissionCheckTimer: Timer?
@@ -25,6 +26,7 @@ struct PromptBindApp: App {
             .environment(\.managedObjectContext, coreDataStack.viewContext)
             .environmentObject(coreDataStack)
             .environmentObject(cloudKitService)
+            .environmentObject(windowManager)
             .sheet(isPresented: $showingAccessibilityPermissionSheet) {
                 AccessibilityPermissionView()
             }
@@ -79,9 +81,31 @@ struct PromptBindApp: App {
             .onReceive(NotificationCenter.default.publisher(for: .windowWillHide)) { _ in
                 hideWindow()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
+                windowManager.openSettingsWindow()
+            }
         }
         .windowResizability(.contentSize)
+        .defaultSize(width: 800, height: 600)
+        
+        // Dedicated Settings Window
+        WindowGroup("Settings") {
+            SettingsView()
+                .environmentObject(cloudKitService)
+                .environmentObject(coreDataStack)
+        }
+        .windowResizability(.contentSize)
+        .windowToolbarStyle(.unified)
+        .defaultSize(width: 500, height: 400)
+        
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    windowManager.openSettingsWindow()
+                }
+                .keyboardShortcut(",", modifiers: [.command])
+            }
+            
             CommandGroup(after: .importExport) {
                 Button("Export Data...") {
                     NotificationCenter.default.post(name: .exportData, object: nil)
@@ -92,16 +116,8 @@ struct PromptBindApp: App {
                     NotificationCenter.default.post(name: .importData, object: nil)
                 }
                 .keyboardShortcut("i", modifiers: [.command])
-                
-                Divider()
-                
-                Button("Settings...") {
-                    NotificationCenter.default.post(name: .showSettings, object: nil)
-                }
-                .keyboardShortcut(",", modifiers: [.command])
             }
         }
-        .defaultSize(width: 800, height: 600)
     }
     
     private func setupStatusBarCallbacks() {
@@ -143,9 +159,11 @@ struct PromptBindApp: App {
     
     private func hideWindow() {
         print("PromptBindApp: Hide window called")
-        // Hide all windows
+        // Hide main windows but keep settings window
         NSApplication.shared.windows.forEach { window in
-            window.orderOut(nil)
+            if window.title != "Settings" && window.contentViewController is NSHostingController<ContentView> {
+                window.orderOut(nil)
+            }
         }
         
         statusBarManager?.isWindowVisible = false
