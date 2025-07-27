@@ -242,13 +242,6 @@ struct ContentView: View {
                     Label("Settings", systemImage: "gear")
                 }
                 .help("Settings")
-                
-                Button(action: {
-                    showingAddPrompt = true
-                }) {
-                    Label("Add Prompt", systemImage: "plus")
-                }
-                .help("Add new prompt")
             }
         }
         .sheet(isPresented: $showingAddPrompt) {
@@ -947,10 +940,13 @@ struct CategoryHeaderView: View {
                 
                 Spacer()
                 
-                Button("Add Prompt") {
-                    onAddPrompt()
+                Button(action: onAddPrompt) {
+                    Image(systemName: "plus")
+                        .font(.title2)
+                        .foregroundColor(.primary)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
+                .help("Add prompt")
             }
             
             Text("\(count) prompt\(count == 1 ? "" : "s")")
