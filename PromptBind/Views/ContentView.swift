@@ -1,6 +1,18 @@
 import SwiftUI
 import CoreData
 
+// MARK: - Focus Management
+struct SelectedSidebarItemKey: FocusedValueKey {
+    typealias Value = Binding<SidebarSelection>
+}
+
+extension FocusedValues {
+    var selectedSidebarItem: Binding<SidebarSelection>? {
+        get { self[SelectedSidebarItemKey.self] }
+        set { self[SelectedSidebarItemKey.self] = newValue }
+    }
+}
+
 // MARK: - Sidebar Selection Model
 enum SidebarSelection: Hashable {
     case allPrompts
@@ -26,6 +38,25 @@ enum SidebarSelection: Hashable {
             hasher.combine(id)
         }
     }
+    
+    // MARK: - Accessibility Support
+    var accessibilityLabel: String {
+        switch self {
+        case .allPrompts:
+            return "All Prompts"
+        case .category:
+            return "Category"
+        }
+    }
+    
+    var accessibilityHint: String {
+        switch self {
+        case .allPrompts:
+            return "View all prompts across all categories"
+        case .category:
+            return "View prompts in this category"
+        }
+    }
 }
 
 struct ContentView: View {
@@ -35,16 +66,17 @@ struct ContentView: View {
     @EnvironmentObject private var windowManager: WindowManager
     var triggerMonitor: TriggerMonitorService?
 
-    // Updated selection state
+    // Updated selection state with persistence
     @State private var selectedItem: SidebarSelection = .allPrompts
     @State private var showingAddPrompt = false
     
-    // Fetch all categories, sorted by order then name
+    // Performance optimization: Limit fetch results
     @FetchRequest private var categories: FetchedResults<NSManagedObject>
-    
-    // Fetch all prompts for count display
     @FetchRequest private var allPrompts: FetchedResults<NSManagedObject>
-
+    
+    // MARK: - Selection Persistence
+    private let selectedItemKey = "PromptBind.SelectedSidebarItem"
+    
     init(viewContext: NSManagedObjectContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
         self.viewContext = viewContext
         self.triggerMonitor = triggerMonitor
@@ -61,6 +93,20 @@ struct ContentView: View {
         let promptRequest = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
         promptRequest.sortDescriptors = [NSSortDescriptor(key: "trigger", ascending: true)]
         _allPrompts = FetchRequest(fetchRequest: promptRequest)
+        
+        // Load selected item from UserDefaults
+        if let savedItem = UserDefaults.standard.object(forKey: selectedItemKey) as? String {
+            switch savedItem {
+            case "allPrompts":
+                selectedItem = .allPrompts
+            case "category":
+                if let categoryID = UserDefaults.standard.object(forKey: "PromptBind.SelectedCategoryID") as? NSManagedObjectID {
+                    selectedItem = .category(categoryID)
+                }
+            default:
+                break
+            }
+        }
     }
     
     var body: some View {
@@ -117,6 +163,15 @@ struct ContentView: View {
                 .listStyle(.sidebar)
                 .navigationTitle("PromptBind")
                 .scrollContentBackground(.hidden)
+                .focusedSceneValue(\.selectedSidebarItem, $selectedItem)
+                .onKeyPress(.upArrow) {
+                    navigateUp()
+                    return .handled
+                }
+                .onKeyPress(.downArrow) {
+                    navigateDown()
+                    return .handled
+                }
             }
         } detail: {
             // Detail: Show prompts based on selection
@@ -125,13 +180,26 @@ struct ContentView: View {
         .onAppear {
             print("ContentView: onAppear called")
             
+            // Restore selection state
+            restoreSelectedItem()
+            
             Task {
                 await handleDefaultPrompts()
             }
         }
+        .onChange(of: selectedItem) { oldValue, newValue in
+            // Persist selection changes
+            saveSelectedItem(newValue)
+            
+            // Log for debugging
+            print("ContentView: Selection changed from \(oldValue) to \(newValue)")
+        }
         .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)) { _ in
             // Update trigger monitor when prompts change
             triggerMonitor?.loadAllPrompts()
+            
+            // Validate current selection is still valid
+            validateCurrentSelection()
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -167,7 +235,8 @@ struct ContentView: View {
             AllPromptsView(
                 viewContext: viewContext,
                 windowManager: windowManager,
-                categories: Array(categories)
+                categories: Array(categories),
+                isLoading: categories.isEmpty && allPrompts.isEmpty
             )
         case .category(let categoryID):
             if let category = categories.first(where: { $0.objectID == categoryID }) {
@@ -175,14 +244,16 @@ struct ContentView: View {
                     category: category,
                     viewContext: viewContext,
                     windowManager: windowManager,
-                    categories: Array(categories)
+                    categories: Array(categories),
+                    isLoading: false
                 )
             } else {
-                // Fallback if category not found
-                AllPromptsView(
-                    viewContext: viewContext,
-                    windowManager: windowManager,
-                    categories: Array(categories)
+                // Fallback if category not found - show loading or error state
+                CategoryNotFoundView(
+                    categoryID: categoryID,
+                    onSelectAllPrompts: {
+                        selectedItem = .allPrompts
+                    }
                 )
             }
         }
@@ -288,6 +359,123 @@ struct ContentView: View {
             }
         }
     }
+    
+    // MARK: - Selection Persistence & Validation
+    
+    private func saveSelectedItem(_ item: SidebarSelection) {
+        switch item {
+        case .allPrompts:
+            UserDefaults.standard.set("allPrompts", forKey: selectedItemKey)
+        case .category(let objectID):
+            UserDefaults.standard.set("category:\(objectID.uriRepresentation().absoluteString)", forKey: selectedItemKey)
+        }
+    }
+    
+    private func restoreSelectedItem() {
+        guard let savedString = UserDefaults.standard.string(forKey: selectedItemKey) else {
+            selectedItem = .allPrompts
+            return
+        }
+        
+        if savedString == "allPrompts" {
+            selectedItem = .allPrompts
+        } else if savedString.hasPrefix("category:") {
+            let urlString = String(savedString.dropFirst("category:".count))
+            if let url = URL(string: urlString),
+               let objectID = viewContext.persistentStoreCoordinator?.managedObjectID(forURIRepresentation: url) {
+                
+                // Validate that the category still exists
+                if categories.contains(where: { $0.objectID == objectID }) {
+                    selectedItem = .category(objectID)
+                } else {
+                    // Category no longer exists, default to all prompts
+                    selectedItem = .allPrompts
+                    UserDefaults.standard.removeObject(forKey: selectedItemKey)
+                }
+            } else {
+                // Invalid URL, default to all prompts
+                selectedItem = .allPrompts
+                UserDefaults.standard.removeObject(forKey: selectedItemKey)
+            }
+        } else {
+            // Invalid saved value, default to all prompts
+            selectedItem = .allPrompts
+            UserDefaults.standard.removeObject(forKey: selectedItemKey)
+        }
+    }
+    
+    private func validateCurrentSelection() {
+        switch selectedItem {
+        case .allPrompts:
+            // Always valid
+            break
+        case .category(let objectID):
+            // Check if category still exists
+            if !categories.contains(where: { $0.objectID == objectID }) {
+                print("ContentView: Selected category no longer exists, switching to All Prompts")
+                selectedItem = .allPrompts
+            }
+        }
+    }
+    
+    // MARK: - Performance Optimization
+    
+    private func optimizedCategoryFetch() -> NSFetchRequest<NSManagedObject> {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Category")
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "order", ascending: true),
+            NSSortDescriptor(key: "name", ascending: true)
+        ]
+        request.fetchBatchSize = 20 // Optimize for typical usage
+        request.relationshipKeyPathsForPrefetching = ["prompts"] // Prefetch relationships
+        return request
+    }
+    
+    private func optimizedPromptFetch() -> NSFetchRequest<NSManagedObject> {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
+        request.sortDescriptors = [NSSortDescriptor(key: "trigger", ascending: true)]
+        request.fetchBatchSize = 50 // Optimize for larger prompt lists
+        request.relationshipKeyPathsForPrefetching = ["category"] // Prefetch category relationships
+        return request
+    }
+    
+    // MARK: - Keyboard Navigation
+    
+    private func navigateUp() {
+        switch selectedItem {
+        case .allPrompts:
+            // Already at top, do nothing
+            break
+        case .category(let objectID):
+            if let currentIndex = categories.firstIndex(where: { $0.objectID == objectID }) {
+                if currentIndex > 0 {
+                    // Move to previous category
+                    let previousCategory = categories[currentIndex - 1]
+                    selectedItem = .category(previousCategory.objectID)
+                } else {
+                    // Move to "All Prompts"
+                    selectedItem = .allPrompts
+                }
+            }
+        }
+    }
+    
+    private func navigateDown() {
+        switch selectedItem {
+        case .allPrompts:
+            // Move to first category if available
+            if let firstCategory = categories.first {
+                selectedItem = .category(firstCategory.objectID)
+            }
+        case .category(let objectID):
+            if let currentIndex = categories.firstIndex(where: { $0.objectID == objectID }),
+               currentIndex < categories.count - 1 {
+                // Move to next category
+                let nextCategory = categories[currentIndex + 1]
+                selectedItem = .category(nextCategory.objectID)
+            }
+        }
+    }
 }
 
 /// List of prompts for a specific category
@@ -296,6 +484,7 @@ struct PromptsListView: View {
     let viewContext: NSManagedObjectContext
     let windowManager: WindowManager
     let categories: [NSManagedObject]
+    let isLoading: Bool
     
     @State private var showingAddPrompt = false
     @State private var editingPrompt: NSManagedObject?
@@ -303,11 +492,12 @@ struct PromptsListView: View {
     // Fetch prompts for this category
     @FetchRequest private var prompts: FetchedResults<NSManagedObject>
     
-    init(category: NSManagedObject, viewContext: NSManagedObjectContext, windowManager: WindowManager, categories: [NSManagedObject]) {
+    init(category: NSManagedObject, viewContext: NSManagedObjectContext, windowManager: WindowManager, categories: [NSManagedObject], isLoading: Bool = false) {
         self.category = category
         self.viewContext = viewContext
         self.windowManager = windowManager
         self.categories = categories
+        self.isLoading = isLoading
         
         let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
         request.predicate = NSPredicate(format: "category == %@", category)
@@ -318,64 +508,35 @@ struct PromptsListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "folder.fill")
-                        .foregroundColor(.orange)
-                        .font(.title2)
-                    
-                    Text(category.categoryName)
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                    
-                    Spacer()
-                    
-                    Button("Add Prompt") {
-                        showingAddPrompt = true
-                    }
-                    .buttonStyle(.borderedProminent)
+            CategoryHeaderView(
+                icon: "folder.fill",
+                iconColor: .orange,
+                title: category.categoryName,
+                count: prompts.count,
+                onAddPrompt: {
+                    showingAddPrompt = true
                 }
-                
-                Text("\(prompts.count) prompt\(prompts.count == 1 ? "" : "s")")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
+            )
             
             Divider()
             
-            // Prompts list
-            if prompts.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "text.cursor")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
-                    
-                    Text("No prompts in this category")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("Add your first prompt to get started")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Button("Add Prompt") {
+            // Content
+            if isLoading {
+                LoadingStateView(message: "Loading prompts...")
+            } else if prompts.isEmpty {
+                EmptyStateView(
+                    icon: "text.cursor",
+                    title: "No prompts in this category",
+                    subtitle: "Add your first prompt to get started",
+                    buttonTitle: "Add Prompt",
+                    onButtonTap: {
                         showingAddPrompt = true
                     }
-                    .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.controlBackgroundColor).opacity(0.5))
+                )
             } else {
-                List(prompts, id: \.objectID) { prompt in
-                    PromptRowView(prompt: prompt) {
-                        editingPrompt = prompt
-                    }
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                PromptsListContentView(prompts: Array(prompts)) { prompt in
+                    editingPrompt = prompt
                 }
-                .listStyle(.plain)
             }
         }
         .sheet(isPresented: $showingAddPrompt) {
@@ -402,6 +563,7 @@ struct AllPromptsView: View {
     let viewContext: NSManagedObjectContext
     let windowManager: WindowManager
     let categories: [NSManagedObject]
+    let isLoading: Bool
     
     @State private var showingAddPrompt = false
     @State private var editingPrompt: NSManagedObject?
@@ -409,10 +571,11 @@ struct AllPromptsView: View {
     // Fetch all prompts
     @FetchRequest private var allPrompts: FetchedResults<NSManagedObject>
     
-    init(viewContext: NSManagedObjectContext, windowManager: WindowManager, categories: [NSManagedObject]) {
+    init(viewContext: NSManagedObjectContext, windowManager: WindowManager, categories: [NSManagedObject], isLoading: Bool = false) {
         self.viewContext = viewContext
         self.windowManager = windowManager
         self.categories = categories
+        self.isLoading = isLoading
         
         let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
         request.sortDescriptors = [NSSortDescriptor(key: "trigger", ascending: true)]
@@ -422,80 +585,35 @@ struct AllPromptsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "text.cursor")
-                        .foregroundColor(.blue)
-                        .font(.title2)
-                    
-                    Text("All Prompts")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                    
-                    Spacer()
-                    
-                    Button("Add Prompt") {
-                        showingAddPrompt = true
-                    }
-                    .buttonStyle(.borderedProminent)
+            CategoryHeaderView(
+                icon: "text.cursor",
+                iconColor: .blue,
+                title: "All Prompts",
+                count: allPrompts.count,
+                onAddPrompt: {
+                    showingAddPrompt = true
                 }
-                
-                Text("\(allPrompts.count) prompt\(allPrompts.count == 1 ? "" : "s")")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
+            )
             
             Divider()
             
-            // All prompts list
-            if allPrompts.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "text.cursor")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
-                    
-                    Text("No prompts yet")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("Create your first prompt to get started")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Button("Add Prompt") {
+            // Content
+            if isLoading {
+                LoadingStateView(message: "Loading prompts...")
+            } else if allPrompts.isEmpty {
+                EmptyStateView(
+                    icon: "text.cursor",
+                    title: "No prompts yet",
+                    subtitle: "Create your first prompt to get started",
+                    buttonTitle: "Add Prompt",
+                    onButtonTap: {
                         showingAddPrompt = true
                     }
-                    .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.controlBackgroundColor).opacity(0.5))
+                )
             } else {
-                List(allPrompts, id: \.objectID) { prompt in
-                    VStack(alignment: .leading, spacing: 4) {
-                        PromptRowView(prompt: prompt) {
-                            editingPrompt = prompt
-                        }
-                        
-                        // Show category name for context
-                        if let category = prompt.promptCategory {
-                            HStack {
-                                Image(systemName: "folder")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(category.categoryName)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .padding(.leading)
-                        }
-                    }
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                AllPromptsListContentView(prompts: Array(allPrompts)) { prompt in
+                    editingPrompt = prompt
                 }
-                .listStyle(.plain)
             }
         }
         .sheet(isPresented: $showingAddPrompt) {
@@ -579,6 +697,7 @@ struct SidebarRowView: View {
                 .foregroundColor(iconColor)
                 .frame(width: 18, height: 18)
                 .font(.system(size: 14, weight: .medium))
+                .accessibilityHidden(true) // Icon is decorative
             
             // Title
             Text(title)
@@ -607,6 +726,180 @@ struct SidebarRowView: View {
                 .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         )
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(count) prompt\(count == 1 ? "" : "s")")
+        .accessibilityHint(isSelected ? "Currently selected" : "Tap to view prompts")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+/// Error state when selected category is not found
+struct CategoryNotFoundView: View {
+    let categoryID: NSManagedObjectID
+    let onSelectAllPrompts: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "folder.badge.questionmark")
+                .font(.system(size: 48))
+                .foregroundColor(.orange)
+            
+            VStack(spacing: 8) {
+                Text("Category Not Found")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text("The selected category might have been deleted or is no longer available.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            
+            Button("View All Prompts") {
+                onSelectAllPrompts()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.controlBackgroundColor).opacity(0.5))
+    }
+}
+
+/// Loading state component
+struct LoadingStateView: View {
+    let message: String
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle())
+                .scaleEffect(1.2)
+            
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.controlBackgroundColor).opacity(0.5))
+    }
+}
+
+/// Reusable header component for detail views
+struct CategoryHeaderView: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let count: Int
+    let onAddPrompt: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(iconColor)
+                    .font(.title2)
+                
+                Text(title)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                Button("Add Prompt") {
+                    onAddPrompt()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            
+            Text("\(count) prompt\(count == 1 ? "" : "s")")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(Color(.controlBackgroundColor))
+    }
+}
+
+/// Reusable empty state component
+struct EmptyStateView: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let buttonTitle: String
+    let onButtonTap: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Button(buttonTitle) {
+                onButtonTap()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.controlBackgroundColor).opacity(0.5))
+    }
+}
+
+/// Content view for prompts list (category-specific)
+struct PromptsListContentView: View {
+    let prompts: [NSManagedObject]
+    let onEdit: (NSManagedObject) -> Void
+    
+    var body: some View {
+        List(prompts, id: \.objectID) { prompt in
+            PromptRowView(prompt: prompt) {
+                onEdit(prompt)
+            }
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+        }
+        .listStyle(.plain)
+    }
+}
+
+/// Content view for all prompts list (with category context)
+struct AllPromptsListContentView: View {
+    let prompts: [NSManagedObject]
+    let onEdit: (NSManagedObject) -> Void
+    
+    var body: some View {
+        List(prompts, id: \.objectID) { prompt in
+            VStack(alignment: .leading, spacing: 4) {
+                PromptRowView(prompt: prompt) {
+                    onEdit(prompt)
+                }
+                
+                // Show category name for context
+                if let category = prompt.promptCategory {
+                    HStack {
+                        Image(systemName: "folder")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(category.categoryName)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.leading)
+                }
+            }
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+        }
+        .listStyle(.plain)
     }
 }
 
