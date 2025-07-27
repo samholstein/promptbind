@@ -54,7 +54,7 @@ class CoreDataStack: ObservableObject {
         promptTrigger.defaultValue = ""  // Provide default value
         
         let promptExpansion = NSAttributeDescription()
-        promptExpansion.name = "expansion"
+        promptExpansion.name = "prompt"  // Changed from "expansion" to "prompt"
         promptExpansion.attributeType = .stringAttributeType
         promptExpansion.isOptional = true  // CloudKit requires optional or default value
         promptExpansion.defaultValue = ""  // Provide default value

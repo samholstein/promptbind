@@ -14,8 +14,8 @@ extension NSManagedObject {
     }
     
     var promptExpansion: String {
-        get { value(forKey: "expansion") as? String ?? "" }
-        set { setValue(newValue, forKey: "expansion") }
+        get { value(forKey: "prompt") as? String ?? "" }  // Changed from "expansion" to "prompt"
+        set { setValue(newValue, forKey: "prompt") }       // Changed from "expansion" to "prompt"
     }
     
     var promptEnabled: Bool {
@@ -35,16 +35,16 @@ extension NSManagedObject {
     
     var displayName: String {
         guard isPrompt else { return "" }
-        return promptTrigger.isEmpty ? "<No Trigger>" : promptTrigger
+        return promptTrigger.isEmpty ? "<No Bind>" : promptTrigger  // Updated terminology
     }
     
     var previewText: String {
         guard isPrompt else { return "" }
-        let expansion = promptExpansion
-        if expansion.count > 50 {
-            return String(expansion.prefix(47)) + "..."
+        let prompt = promptExpansion  // This now refers to the "prompt" field
+        if prompt.count > 50 {
+            return String(prompt.prefix(47)) + "..."
         }
-        return expansion
+        return prompt
     }
 }
 
@@ -54,7 +54,7 @@ extension NSManagedObjectContext {
         let prompt = NSEntityDescription.insertNewObject(forEntityName: "Prompt", into: self)
         prompt.promptID = UUID()
         prompt.promptTrigger = trigger
-        prompt.promptExpansion = expansion
+        prompt.promptExpansion = expansion  // This will now save to the "prompt" field
         prompt.promptEnabled = enabled
         prompt.promptCategory = category
         return prompt

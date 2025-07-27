@@ -94,7 +94,7 @@ class TriggerMonitorService: ObservableObject {
             for prompt in prompts {
                 if let enabled = prompt.value(forKey: "enabled") as? Bool,
                    let trigger = prompt.value(forKey: "trigger") as? String,
-                   let expansion = prompt.value(forKey: "expansion") as? String,
+                   let expansion = prompt.value(forKey: "prompt") as? String,  // Changed from "expansion" to "prompt"
                    enabled {
                     if currentText.hasSuffix(trigger) {
                         print("Trigger matched: \(trigger) -> \(expansion)")
