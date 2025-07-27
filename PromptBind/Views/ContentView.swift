@@ -635,25 +635,37 @@ struct AllPromptsView: View {
     }
 }
 
-/// Individual prompt row component
+/// Individual prompt row component - completely redesigned
 struct PromptRowView: View {
     let prompt: NSManagedObject
     let onEdit: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // Trigger text
+        HStack(alignment: .top, spacing: 12) {
+            // Left side: Bind and preview
+            VStack(alignment: .leading, spacing: 3) {
+                // Bind text (trigger)
                 Text(prompt.displayName)
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundColor(.primary)
                 
-                Spacer()
-                
+                // Prompt preview - actual expansion text
+                Text(prompt.promptExpansion.isEmpty ? "No content" : prompt.promptExpansion)
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            
+            Spacer()
+            
+            // Right side: Status and actions
+            HStack(spacing: 8) {
                 // Enabled/disabled indicator
                 if !prompt.promptEnabled {
-                    Image(systemName: "slash.circle.fill")
-                        .foregroundColor(.secondary)
+                    Image(systemName: "pause.circle.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 14))
                         .help("Disabled")
                 }
                 
@@ -661,24 +673,19 @@ struct PromptRowView: View {
                 Button(action: onEdit) {
                     Image(systemName: "pencil")
                         .foregroundColor(.blue)
+                        .font(.system(size: 14))
                 }
                 .buttonStyle(.plain)
                 .help("Edit prompt")
             }
-            
-            // Expansion text
-            Text(prompt.previewText)
-                .font(.body)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
         }
-        .padding()
-        .background(Color(.controlBackgroundColor))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(.separatorColor), lineWidth: 0.5)
-        )
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .background(Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onEdit()
+        }
     }
 }
 
@@ -853,7 +860,7 @@ struct EmptyStateView: View {
     }
 }
 
-/// Content view for prompts list (category-specific)
+/// Content view for prompts list (category-specific) - simplified
 struct PromptsListContentView: View {
     let prompts: [NSManagedObject]
     let onEdit: (NSManagedObject) -> Void
@@ -863,21 +870,23 @@ struct PromptsListContentView: View {
             PromptRowView(prompt: prompt) {
                 onEdit(prompt)
             }
-            .listRowSeparator(.hidden)
+            .listRowSeparator(.visible)
             .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         }
         .listStyle(.plain)
+        .background(Color(.controlBackgroundColor))
     }
 }
 
-/// Content view for all prompts list (with category context)
+/// Content view for all prompts list (with category context) - simplified
 struct AllPromptsListContentView: View {
     let prompts: [NSManagedObject]
     let onEdit: (NSManagedObject) -> Void
     
     var body: some View {
         List(prompts, id: \.objectID) { prompt in
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 0) {
                 PromptRowView(prompt: prompt) {
                     onEdit(prompt)
                 }
@@ -886,20 +895,23 @@ struct AllPromptsListContentView: View {
                 if let category = prompt.promptCategory {
                     HStack {
                         Image(systemName: "folder")
-                            .font(.caption)
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                         Text(category.categoryName)
-                            .font(.caption)
+                            .font(.system(size: 11))
                             .foregroundColor(.secondary)
                         Spacer()
                     }
-                    .padding(.leading)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                 }
             }
-            .listRowSeparator(.hidden)
+            .listRowSeparator(.visible)
             .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         }
         .listStyle(.plain)
+        .background(Color(.controlBackgroundColor))
     }
 }
 
