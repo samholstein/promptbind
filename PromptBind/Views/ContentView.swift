@@ -8,70 +8,67 @@ struct ContentView: View {
     @EnvironmentObject private var windowManager: WindowManager
     var triggerMonitor: TriggerMonitorService?
 
+    // State for selected category
+    @State private var selectedCategory: NSManagedObject?
+    
+    // Fetch all categories, sorted by order then name
+    @FetchRequest private var categories: FetchedResults<NSManagedObject>
+
     init(viewContext: NSManagedObjectContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
         self.viewContext = viewContext
         self.triggerMonitor = triggerMonitor
+        
+        // Initialize FetchRequest properly
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Category")
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "order", ascending: true),
+            NSSortDescriptor(key: "name", ascending: true)
+        ]
+        _categories = FetchRequest(fetchRequest: request)
     }
     
     var body: some View {
         NavigationSplitView {
-            Text("Categories")
-                .navigationTitle("Categories")
-        } detail: {
+            // Sidebar: Categories
             VStack {
-                // CloudKit status bar
-                Button(action: {
-                    windowManager.openSettingsWindow()
-                }) {
-                    HStack {
-                        if coreDataStack.isCloudKitReady && coreDataStack.cloudKitError == nil {
-                            Image(systemName: "icloud")
-                                .foregroundColor(.blue)
-                            Text("Synced with iCloud")
+                // CloudKit status bar at top of sidebar
+                cloudKitStatusBar
+                
+                // Categories list
+                List(selection: $selectedCategory) {
+                    ForEach(categories, id: \.objectID) { category in
+                        HStack {
+                            Text(category.categoryName)
+                                .font(.body)
+                            Spacer()
+                            Text("\(category.categoryPrompts.count)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                        } else {
-                            Image(systemName: "exclamationmark.triangle")
-                                .foregroundColor(.orange)
-                            Text("A Core Data error occurred")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.2))
+                                .clipShape(Capsule())
                         }
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                        .tag(category as NSManagedObject?)
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.1))
                 }
-                .buttonStyle(.plain)
-                .help("Click to open Settings - Error: \(coreDataStack.cloudKitError ?? "Unknown error")")
-                
-                Text("All Prompts")
-                    .font(.headline)
-                    .padding(.top)
-                
-                Spacer()
+                .listStyle(.sidebar)
+                .navigationTitle("Categories")
             }
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button(action: {
-                        windowManager.openSettingsWindow()
-                    }) {
-                        Label("Settings", systemImage: "gear")
-                    }
-                    .help("Settings")
-                    
-                    Button(action: {
-                        // Add prompt action - will implement later
-                    }) {
-                        Label("Add Prompt", systemImage: "plus")
-                    }
-                    .help("Add new prompt")
-                }
+        } detail: {
+            // Detail: Prompts for selected category
+            if let selected = selectedCategory {
+                PromptsListView(
+                    category: selected,
+                    viewContext: viewContext,
+                    windowManager: windowManager
+                )
+            } else {
+                // No category selected - show all prompts
+                AllPromptsView(
+                    viewContext: viewContext,
+                    windowManager: windowManager
+                )
             }
         }
         .onAppear {
@@ -81,6 +78,59 @@ struct ContentView: View {
                 await handleDefaultPrompts()
             }
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(action: {
+                    windowManager.openSettingsWindow()
+                }) {
+                    Label("Settings", systemImage: "gear")
+                }
+                .help("Settings")
+                
+                Button(action: {
+                    // TODO: Implement add prompt functionality
+                    print("Add prompt button tapped")
+                }) {
+                    Label("Add Prompt", systemImage: "plus")
+                }
+                .help("Add new prompt")
+            }
+        }
+    }
+    
+    private var cloudKitStatusBar: some View {
+        Button(action: {
+            windowManager.openSettingsWindow()
+        }) {
+            HStack {
+                if coreDataStack.isCloudKitReady && coreDataStack.cloudKitError == nil {
+                    Image(systemName: "icloud")
+                        .foregroundColor(.blue)
+                    Text("Synced")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.orange)
+                    Text("Sync Issue")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 6)
+            .background(coreDataStack.isCloudKitReady ? Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
+            .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
+        .help(coreDataStack.cloudKitError ?? "Click to open Settings")
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
     
     private func handleDefaultPrompts() async {
@@ -102,21 +152,18 @@ struct ContentView: View {
         print("ContentView: Starting to add default prompts...")
         
         do {
-            // Create default category
-            let uncategorizedCategory = NSEntityDescription.insertNewObject(forEntityName: "Category", into: viewContext)
-            uncategorizedCategory.setValue("Uncategorized", forKey: "name")
-            uncategorizedCategory.setValue(Int16(0), forKey: "order")
-            uncategorizedCategory.setValue(UUID(), forKey: "id")
+            // Create default category using our extension
+            let uncategorizedCategory = viewContext.createCategory(name: "Uncategorized", order: 0)
             
             print("ContentView: Created Uncategorized category")
             
-            // Create one simple test prompt
-            let testPrompt = NSEntityDescription.insertNewObject(forEntityName: "Prompt", into: viewContext)
-            testPrompt.setValue(UUID(), forKey: "id")
-            testPrompt.setValue("test", forKey: "trigger")
-            testPrompt.setValue("This is a test prompt", forKey: "expansion")
-            testPrompt.setValue(true, forKey: "enabled")
-            testPrompt.setValue(uncategorizedCategory, forKey: "category")
+            // Create test prompt using our extension
+            let testPrompt = viewContext.createPrompt(
+                trigger: "test",
+                expansion: "This is a test prompt",
+                enabled: true,
+                category: uncategorizedCategory
+            )
             
             print("ContentView: Created test prompt")
             
@@ -133,6 +180,200 @@ struct ContentView: View {
                 print("ContentView: Core Data error userInfo: \(coreDataError.userInfo)")
             }
         }
+    }
+}
+
+/// List of prompts for a specific category
+struct PromptsListView: View {
+    let category: NSManagedObject
+    let viewContext: NSManagedObjectContext
+    let windowManager: WindowManager
+    
+    // Fetch prompts for this category
+    @FetchRequest private var prompts: FetchedResults<NSManagedObject>
+    
+    init(category: NSManagedObject, viewContext: NSManagedObjectContext, windowManager: WindowManager) {
+        self.category = category
+        self.viewContext = viewContext
+        self.windowManager = windowManager
+        
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
+        request.predicate = NSPredicate(format: "category == %@", category)
+        request.sortDescriptors = [NSSortDescriptor(key: "trigger", ascending: true)]
+        _prompts = FetchRequest(fetchRequest: request)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: 8) {
+                Text(category.categoryName)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Text("\(prompts.count) prompt\(prompts.count == 1 ? "" : "s")")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.controlBackgroundColor))
+            
+            Divider()
+            
+            // Prompts list
+            if prompts.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "text.cursor")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+                    
+                    Text("No prompts in this category")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Add your first prompt to get started")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Button("Add Prompt") {
+                        // TODO: Implement add prompt
+                        print("Add prompt from empty state")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.controlBackgroundColor).opacity(0.5))
+            } else {
+                List(prompts, id: \.objectID) { prompt in
+                    PromptRowView(prompt: prompt)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+}
+
+/// List showing all prompts regardless of category
+struct AllPromptsView: View {
+    let viewContext: NSManagedObjectContext
+    let windowManager: WindowManager
+    
+    // Fetch all prompts
+    @FetchRequest private var allPrompts: FetchedResults<NSManagedObject>
+    
+    init(viewContext: NSManagedObjectContext, windowManager: WindowManager) {
+        self.viewContext = viewContext
+        self.windowManager = windowManager
+        
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
+        request.sortDescriptors = [NSSortDescriptor(key: "trigger", ascending: true)]
+        _allPrompts = FetchRequest(fetchRequest: request)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: 8) {
+                Text("All Prompts")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Text("\(allPrompts.count) prompt\(allPrompts.count == 1 ? "" : "s")")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.controlBackgroundColor))
+            
+            Divider()
+            
+            // All prompts list
+            if allPrompts.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "text.cursor")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+                    
+                    Text("No prompts yet")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Create your first prompt to get started")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Button("Add Prompt") {
+                        // TODO: Implement add prompt
+                        print("Add prompt from empty state")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.controlBackgroundColor).opacity(0.5))
+            } else {
+                List(allPrompts, id: \.objectID) { prompt in
+                    VStack(alignment: .leading, spacing: 4) {
+                        PromptRowView(prompt: prompt)
+                        
+                        // Show category name for context
+                        if let category = prompt.promptCategory {
+                            HStack {
+                                Image(systemName: "folder")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(category.categoryName)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                        }
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+}
+
+/// Individual prompt row component
+struct PromptRowView: View {
+    let prompt: NSManagedObject
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                // Trigger text
+                Text(prompt.displayName)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                // Enabled/disabled indicator
+                if !prompt.promptEnabled {
+                    Image(systemName: "slash.circle.fill")
+                        .foregroundColor(.secondary)
+                        .help("Disabled")
+                }
+            }
+            
+            // Expansion text
+            Text(prompt.previewText)
+                .font(.body)
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+        }
+        .padding()
+        .background(Color(.controlBackgroundColor))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(.separatorColor), lineWidth: 0.5)
+        )
     }
 }
 
