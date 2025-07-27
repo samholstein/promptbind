@@ -66,56 +66,57 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             // Sidebar: All Prompts + Categories
-            VStack {
+            VStack(spacing: 0) {
                 // CloudKit status bar at top of sidebar
                 cloudKitStatusBar
                 
                 // Sidebar content
                 List(selection: $selectedItem) {
                     // All Prompts section
-                    HStack {
-                        Image(systemName: "text.cursor")
-                            .foregroundColor(.blue)
-                            .frame(width: 16)
-                        Text("All Prompts")
-                            .font(.body)
-                        Spacer()
-                        Text("\(allPrompts.count)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.secondary.opacity(0.2))
-                            .clipShape(Capsule())
-                    }
+                    SidebarRowView(
+                        icon: "text.cursor",
+                        iconColor: .blue,
+                        title: "All Prompts",
+                        count: allPrompts.count,
+                        isSelected: selectedItem == .allPrompts
+                    )
                     .tag(SidebarSelection.allPrompts)
+                    .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                    .listRowSeparator(.hidden)
                     
                     // Categories section
                     if !categories.isEmpty {
-                        Section("Categories") {
+                        Section {
                             ForEach(categories, id: \.objectID) { category in
-                                HStack {
-                                    Image(systemName: "folder.fill")
-                                        .foregroundColor(.orange)
-                                        .frame(width: 16)
-                                    Text(category.categoryName)
-                                        .font(.body)
-                                    Spacer()
-                                    Text("\(category.categoryPrompts.count)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.secondary.opacity(0.2))
-                                        .clipShape(Capsule())
-                                }
+                                SidebarRowView(
+                                    icon: "folder.fill",
+                                    iconColor: .orange,
+                                    title: category.categoryName,
+                                    count: category.categoryPrompts.count,
+                                    isSelected: selectedItem == .category(category.objectID)
+                                )
                                 .tag(SidebarSelection.category(category.objectID))
+                                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                                .listRowSeparator(.hidden)
                             }
+                        } header: {
+                            HStack {
+                                Text("Categories")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.top, 16)
+                            .padding(.bottom, 4)
                         }
                     }
                 }
                 .listStyle(.sidebar)
                 .navigationTitle("PromptBind")
+                .scrollContentBackground(.hidden)
             }
         } detail: {
             // Detail: Show prompts based on selection
@@ -201,19 +202,23 @@ struct ContentView: View {
         Button(action: {
             windowManager.openSettingsWindow()
         }) {
-            HStack {
+            HStack(spacing: 8) {
                 if coreDataStack.isCloudKitReady && coreDataStack.cloudKitError == nil {
-                    Image(systemName: "icloud")
+                    Image(systemName: "icloud.fill")
                         .foregroundColor(.blue)
+                        .font(.system(size: 12, weight: .medium))
                     Text("Synced")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
                 } else {
-                    Image(systemName: "exclamationmark.triangle")
+                    Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
+                        .font(.system(size: 12, weight: .medium))
                     Text("Sync Issue")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .fontWeight(.medium)
+                        .foregroundColor(.orange)
                 }
                 Spacer()
                 
@@ -221,15 +226,18 @@ struct ContentView: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
-            .background(coreDataStack.isCloudKitReady ? Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
-            .cornerRadius(6)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(coreDataStack.isCloudKitReady ? Color.blue.opacity(0.08) : Color.orange.opacity(0.08))
+                    .stroke(coreDataStack.isCloudKitReady ? Color.blue.opacity(0.2) : Color.orange.opacity(0.2), lineWidth: 0.5)
+            )
         }
         .buttonStyle(.plain)
         .help(coreDataStack.cloudKitError ?? "Click to open Settings")
-        .padding(.horizontal)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
     }
     
     private func handleDefaultPrompts() async {
@@ -553,6 +561,52 @@ struct PromptRowView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color(.separatorColor), lineWidth: 0.5)
         )
+    }
+}
+
+/// Enhanced sidebar row component with better styling
+struct SidebarRowView: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let count: Int
+    let isSelected: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            Image(systemName: icon)
+                .foregroundColor(iconColor)
+                .frame(width: 18, height: 18)
+                .font(.system(size: 14, weight: .medium))
+            
+            // Title
+            Text(title)
+                .font(.body)
+                .fontWeight(isSelected ? .medium : .regular)
+                .foregroundColor(isSelected ? .primary : .primary)
+            
+            Spacer()
+            
+            // Count badge
+            Text("\(count)")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(isSelected ? .white : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.2))
+                )
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+        .contentShape(Rectangle())
     }
 }
 
