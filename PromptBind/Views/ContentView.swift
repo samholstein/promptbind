@@ -95,6 +95,7 @@ struct ContentView: View {
                 .frame(minWidth: 500, idealWidth: 600, minHeight: 450) 
         }
         .onAppear {
+            print("ContentView: onAppear called")
             setupWindowDelegate()
             
             triggerMonitor?.updatePrompts(promptListVM.prompts)
@@ -102,9 +103,9 @@ struct ContentView: View {
                 selectedCategorySelection = .all
             }
 
-            // Handle default prompts with CloudKit
-            Task {
-                await handleDefaultPrompts()
+            // Handle default prompts with CloudKit - use detached task to prevent blocking
+            Task.detached {
+                await self.handleDefaultPrompts()
             }
         }
         .onDisappear {
@@ -177,39 +178,53 @@ struct ContentView: View {
     }
     
     private func handleDefaultPrompts() async {
-        // Wait for CloudKit account status to be determined
-        if cloudKitService.accountStatus == .couldNotDetermine {
-            // Wait a bit for status to be determined
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        print("ContentView: handleDefaultPrompts started")
+        
+        // Give CloudKit a moment to initialize if needed
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        
+        await MainActor.run {
+            print("ContentView: CloudKit account status: \(cloudKitService.accountStatus)")
+            print("ContentView: CloudKit isSignedIn: \(cloudKitService.isSignedIn)")
         }
         
-        if cloudKitService.isSignedIn {
-            // User is signed into iCloud - check CloudKit flag
+        let isSignedIn = await MainActor.run { cloudKitService.isSignedIn }
+        
+        if isSignedIn {
+            print("ContentView: User is signed into iCloud - checking CloudKit flag")
             let hasAddedDefaults = await cloudKitService.hasAddedDefaultPrompts()
             print("ContentView: CloudKit user - hasAddedDefaultPrompts = \(hasAddedDefaults)")
             
             if !hasAddedDefaults {
                 print("ContentView: Adding default prompts for iCloud user...")
-                DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
                 await MainActor.run {
+                    DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
                     promptListVM.loadPrompts()
                 }
                 await cloudKitService.markDefaultPromptsAsAdded()
                 print("ContentView: Default prompts added for iCloud user")
+            } else {
+                print("ContentView: Default prompts already added for iCloud user")
             }
         } else {
-            // User not signed into iCloud - use local UserDefaults
+            print("ContentView: User not signed into iCloud - using local UserDefaults")
             let hasAddedDefaults = UserDefaults.standard.bool(forKey: "hasAddedDefaultPrompts")
             print("ContentView: Local user - hasAddedDefaultPrompts = \(hasAddedDefaults)")
             
             if !hasAddedDefaults {
                 print("ContentView: Adding default prompts for local user...")
-                DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
-                promptListVM.loadPrompts()
+                await MainActor.run {
+                    DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
+                    promptListVM.loadPrompts()
+                }
                 UserDefaults.standard.set(true, forKey: "hasAddedDefaultPrompts")
                 print("ContentView: Default prompts added for local user")
+            } else {
+                print("ContentView: Default prompts already added for local user")
             }
         }
+        
+        print("ContentView: handleDefaultPrompts completed")
     }
     
     private func handleExportData() {

@@ -17,13 +17,12 @@ struct PromptBindApp: App {
 
     init() {
         do {
-            // Try to configure ModelContainer with CloudKit support
-            // First, let's try the basic configuration and see what's available
-            let configuration = ModelConfiguration()
-            container = try ModelContainer(for: Prompt.self, Category.self, configurations: configuration)
-            print("Successfully initialized ModelContainer")
+            // First try without CloudKit, then we'll add CloudKit support later
+            print("PromptBindApp: Attempting to create local ModelContainer...")
+            container = try ModelContainer(for: Prompt.self, Category.self)
+            print("PromptBindApp: Successfully created local ModelContainer")
         } catch {
-            print("Failed to create ModelContainer: \(error)")
+            print("PromptBindApp: Failed to create ModelContainer: \(error)")
             fatalError("Failed to create ModelContainer: \(error)")
         }
     }
