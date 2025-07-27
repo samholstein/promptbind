@@ -262,32 +262,67 @@ struct SettingsView: View {
     }
     
     private func reloadDefaultPrompts() async {
+        print("SettingsView: Starting to reload default prompts...")
+        
         do {
             // Create and use the import service to load defaults
             let importService = DataExportImportService(viewContext: coreDataStack.viewContext)
             try await importService.loadDefaultPrompts()
-            print("Successfully reloaded default prompts after data clear")
+            print("SettingsView: Successfully reloaded default prompts after data clear")
         } catch {
-            print("Error reloading default prompts: \(error)")
-            // If JSON loading fails, create a basic default
-            await createBasicDefault()
+            print("SettingsView: Error reloading default prompts: \(error)")
+            print("SettingsView: Error type: \(type(of: error))")
+            
+            // Check if the bundle contains the file
+            if let url = Bundle.main.url(forResource: "DefaultPrompts", withExtension: "json") {
+                print("SettingsView: DefaultPrompts.json found at: \(url.path)")
+                do {
+                    let data = try Data(contentsOf: url)
+                    print("SettingsView: File data loaded, size: \(data.count) bytes")
+                    let string = String(data: data, encoding: .utf8) ?? "Could not convert to string"
+                    print("SettingsView: File contents preview: \(string.prefix(200))...")
+                } catch {
+                    print("SettingsView: Error reading file: \(error)")
+                }
+            } else {
+                print("SettingsView: DefaultPrompts.json NOT found in bundle")
+                print("SettingsView: Bundle path: \(Bundle.main.bundlePath)")
+                print("SettingsView: Bundle resources: \(Bundle.main.paths(forResourcesOfType: "json", inDirectory: nil))")
+            }
+            
+            // If JSON loading fails, create the exact prompt as fallback
+            await createSpecificDefault()
         }
     }
     
-    private func createBasicDefault() async {
+    private func createSpecificDefault() async {
+        print("SettingsView: Creating specific default prompt...")
+        
         do {
             let context = coreDataStack.viewContext
-            let defaultCategory = context.createCategory(name: "AI Assistant Prompts", order: 0)
+            let defaultCategory = context.createCategory(name: "Agentic Programming", order: 0)
             let defaultPrompt = context.createPrompt(
-                trigger: "review codebase",
-                expansion: "Please review this codebase and describe its overall functionality to me.",
+                trigger: "firstprompt",
+                expansion: """
+You are an AI coding agent collaborating closely with me to develop and enhance applications. Your role is to support the development process by adhering strictly to these guidelines:
+
+1. **Feature Implementation Approval:**
+
+   * You must seek explicit approval from me before implementing any new features, modifications, or developing workarounds and fallbacks for existing functionalities.
+
+2. **Testing Coordination:**
+
+   * Whenever the application reaches a state requiring testing or verification, stop immediately and prompt me clearly and explicitly. Do not proceed further until I have tested the app and confirmed the results.
+
+Now, please thoroughly review the provided codebase. After your review, summarize its overall functionality at a high level. Provide a concise but comprehensive description so we can confirm our shared understanding of the project's purpose and current state.
+""",
                 enabled: true,
                 category: defaultCategory
             )
             try context.save()
-            print("Created basic default prompt after data clear")
+            print("SettingsView: Created specific default prompt after data clear")
         } catch {
-            print("Error creating basic default: \(error)")
+            print("SettingsView: Error creating specific default: \(error)")
         }
     }
 }
