@@ -1,60 +1,31 @@
 import SwiftUI
-import SwiftData
+import CoreData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    
-    @StateObject private var categoryListVM: CategoryListViewModel
-    @StateObject private var promptListVM: PromptListViewModel
+    let viewContext: NSManagedObjectContext
+    @EnvironmentObject private var coreDataStack: CoreDataStack
     @EnvironmentObject private var cloudKitService: CloudKitService
     var triggerMonitor: TriggerMonitorService?
     
-    @State private var selectedCategorySelection: CategorySelection? {
-        didSet {
-            promptListVM.selectedCategorySelection = selectedCategorySelection
-        }
-    }
-    
-    @State private var showingAddPromptSheet = false
-    @State private var showingAddCategoryAlert = false
-    @State private var newCategoryName: String = ""
-
-    // For editing prompts
-    @State private var promptToEdit: Prompt?
-
-    // For export/import
-    @State private var showingExportSuccessAlert = false
-    @State private var showingImportSuccessAlert = false
-    @State private var showingImportErrorAlert = false
-    @State private var exportSuccessMessage = ""
-    @State private var importSuccessMessage = ""
-    @State private var importErrorMessage = ""
-    
-    private var dataExportImportService: DataExportImportService
-    
-    // Window delegate for handling window close events
-    @StateObject private var windowDelegate = WindowDelegateWrapper()
-
     @State private var showingSettingsSheet = false
-    
-    init(modelContext: ModelContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
-        _categoryListVM = StateObject(wrappedValue: CategoryListViewModel(modelContext: modelContext))
-        _promptListVM = StateObject(wrappedValue: PromptListViewModel(modelContext: modelContext))
+
+    init(viewContext: NSManagedObjectContext, triggerMonitor: TriggerMonitorService?, cloudKitService: CloudKitService) {
+        self.viewContext = viewContext
         self.triggerMonitor = triggerMonitor
-        dataExportImportService = DataExportImportService(modelContext: modelContext)
     }
     
     var body: some View {
         NavigationSplitView {
-            CategoryListView(viewModel: categoryListVM, selectedCategorySelection: $selectedCategorySelection, showingAddCategoryAlert: $showingAddCategoryAlert)
+            Text("Categories")
+                .navigationTitle("Categories")
         } detail: {
             VStack {
-                // CloudKit status bar - make it clickable
+                // CloudKit status bar
                 Button(action: {
                     showingSettingsSheet = true
                 }) {
                     HStack {
-                        if cloudKitService.isSignedIn {
+                        if coreDataStack.isCloudKitReady {
                             Image(systemName: "icloud")
                                 .foregroundColor(.blue)
                             Text("Synced with iCloud")
@@ -63,7 +34,7 @@ struct ContentView: View {
                         } else {
                             Image(systemName: "icloud.slash")
                                 .foregroundColor(.orange)
-                            Text("Not signed into iCloud - data stored locally only")
+                            Text(coreDataStack.cloudKitError ?? "Not signed into iCloud")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -75,636 +46,116 @@ struct ContentView: View {
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 4)
-                    .background(cloudKitService.isSignedIn ? Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
+                    .background(coreDataStack.isCloudKitReady ? Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
                 }
                 .buttonStyle(.plain)
                 .help("Click to open Settings")
                 
-                PromptListView(viewModel: promptListVM, promptToEdit: $promptToEdit)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .primaryAction) {
-                            Button(action: {
-                                showingSettingsSheet = true
-                            }) {
-                                Label("Settings", systemImage: "gear")
-                            }
-                            .help("Settings")
-                            
-                            Button(action: {
-                                if promptListVM.selectedCategory != nil || selectedCategorySelection?.isAll == true || !categoryListVM.categories.isEmpty {
-                                    showingAddPromptSheet = true
-                                } else {
-                                    print("No category selected and no categories exist to add prompt to.")
-                                }
-                            }) {
-                                Label("Add Prompt", systemImage: "plus")
-                            }
-                            .disabled(selectedCategorySelection == nil && categoryListVM.categories.isEmpty)
-                            .keyboardShortcut("n", modifiers: .command)
-                            .help("Add new prompt")
-                        }
-                    }
+                Text("All Prompts")
+                    .font(.headline)
+                    .padding(.top)
+                
+                Spacer()
             }
-        }
-        .sheet(isPresented: $showingAddPromptSheet) {
-            AddPromptView(viewModel: promptListVM, selectedCategorySelection: $selectedCategorySelection, categoryListVM: categoryListVM)
-                .frame(minWidth: 500, idealWidth: 600, minHeight: 400) 
-        }
-        .sheet(item: $promptToEdit) { prompt in
-            EditPromptView(viewModel: promptListVM, prompt: prompt, categoryListVM: categoryListVM)
-                .frame(minWidth: 500, idealWidth: 600, minHeight: 450) 
+            .toolbar {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button(action: {
+                        showingSettingsSheet = true
+                    }) {
+                        Label("Settings", systemImage: "gear")
+                    }
+                    .help("Settings")
+                    
+                    Button(action: {
+                        // Add prompt action - will implement later
+                    }) {
+                        Label("Add Prompt", systemImage: "plus")
+                    }
+                    .help("Add new prompt")
+                }
+            }
         }
         .sheet(isPresented: $showingSettingsSheet) {
             SettingsView()
                 .environmentObject(cloudKitService)
+                .environmentObject(coreDataStack)
         }
         .onAppear {
             print("ContentView: onAppear called")
-            setupWindowDelegate()
             
-            triggerMonitor?.updatePrompts(promptListVM.prompts)
-            if selectedCategorySelection == nil {
-                selectedCategorySelection = .all
+            Task {
+                await handleDefaultPrompts()
             }
-
-            // Handle default prompts with CloudKit - use detached task to prevent blocking
-            Task.detached {
-                await self.handleDefaultPrompts()
-            }
-        }
-        .onDisappear {
-            // Don't stop monitoring when the view disappears - we want it to continue in background
-            // triggerMonitor.stopMonitoring()
-        }
-        .onChange(of: promptListVM.prompts) { _, newPrompts in
-            triggerMonitor?.updatePrompts(newPrompts)
-        }
-        .onChange(of: categoryListVM.categories) { _, newCategories in
-            if let currentSelection = selectedCategorySelection {
-                switch currentSelection {
-                case .all:
-                    break
-                case .category(let category):
-                    if !newCategories.contains(where: { $0.id == category.id }) {
-                        selectedCategorySelection = .all
-                    }
-                }
-            } else {
-                selectedCategorySelection = .all
-            }
-        }
-        .onChange(of: selectedCategorySelection) { _, newCategorySelection in
-            promptListVM.selectedCategorySelection = newCategorySelection
-        }
-        .alert("New Category", isPresented: $showingAddCategoryAlert, actions: {
-            TextField("Category Name", text: $newCategoryName)
-            Button("Add", action: {
-                categoryListVM.addCategory(name: newCategoryName)
-                newCategoryName = ""
-            })
-            Button("Cancel", role: .cancel) { }
-        }, message: {
-            Text("Enter the name for the new category.")
-        })
-        .alert("Export Successful", isPresented: $showingExportSuccessAlert) {
-            Button("OK") { }
-        } message: {
-            Text(exportSuccessMessage)
-        }
-        .alert("Import Successful", isPresented: $showingImportSuccessAlert) {
-            Button("OK") { }
-        } message: {
-            Text(importSuccessMessage)
-        }
-        .alert("Import Error", isPresented: $showingImportErrorAlert) {
-            Button("OK") { }
-        } message: {
-            Text(importErrorMessage)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .exportData)) { _ in
-            handleExportData()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .importData)) { _ in
-            handleImportData()
         }
         .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
             showingSettingsSheet = true
         }
     }
     
-    private func setupWindowDelegate() {
-        DispatchQueue.main.async {
-            if let window = NSApplication.shared.windows.first {
-                window.delegate = windowDelegate.delegate
-                windowDelegate.delegate.onWindowWillClose = {
-                    // Notify that the window is being hidden
-                    NotificationCenter.default.post(name: .windowWillHide, object: nil)
-                }
-            }
-        }
-    }
-    
     private func handleDefaultPrompts() async {
         print("ContentView: handleDefaultPrompts started")
         
-        // Give CloudKit a moment to initialize if needed
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        let hasDefaultPrompts = await cloudKitService.hasAddedDefaultPrompts(context: viewContext)
         
-        await MainActor.run {
-            print("ContentView: CloudKit account status: \(cloudKitService.accountStatus)")
-            print("ContentView: CloudKit isSignedIn: \(cloudKitService.isSignedIn)")
-        }
-        
-        let isSignedIn = await MainActor.run { cloudKitService.isSignedIn }
-        
-        if isSignedIn {
-            print("ContentView: User is signed into iCloud - checking CloudKit flag")
-            let hasAddedDefaults = await cloudKitService.hasAddedDefaultPrompts()
-            print("ContentView: CloudKit user - hasAddedDefaultPrompts = \(hasAddedDefaults)")
-            
-            if !hasAddedDefaults {
-                print("ContentView: Adding default prompts for iCloud user...")
-                await MainActor.run {
-                    DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
-                    promptListVM.loadPrompts()
-                }
-                await cloudKitService.markDefaultPromptsAsAdded()
-                print("ContentView: Default prompts added for iCloud user")
-            } else {
-                print("ContentView: Default prompts already added for iCloud user")
+        if !hasDefaultPrompts {
+            print("ContentView: Adding default prompts...")
+            await MainActor.run {
+                addDefaultPrompts()
             }
         } else {
-            print("ContentView: User not signed into iCloud - using local UserDefaults")
-            let hasAddedDefaults = UserDefaults.standard.bool(forKey: "hasAddedDefaultPrompts")
-            print("ContentView: Local user - hasAddedDefaultPrompts = \(hasAddedDefaults)")
-            
-            if !hasAddedDefaults {
-                print("ContentView: Adding default prompts for local user...")
-                await MainActor.run {
-                    DefaultPromptsService.shared.addDefaultPromptsToContext(modelContext)
-                    promptListVM.loadPrompts()
-                }
-                UserDefaults.standard.set(true, forKey: "hasAddedDefaultPrompts")
-                print("ContentView: Default prompts added for local user")
-            } else {
-                print("ContentView: Default prompts already added for local user")
-            }
+            print("ContentView: Default prompts already exist")
+        }
+    }
+    
+    private func addDefaultPrompts() {
+        // Create default category
+        let uncategorizedCategory = NSEntityDescription.insertNewObject(forEntityName: "Category", into: viewContext)
+        uncategorizedCategory.setValue("Uncategorized", forKey: "name")
+        uncategorizedCategory.setValue(Int16(0), forKey: "order")
+        uncategorizedCategory.setValue(UUID(), forKey: "id")
+        
+        let vibeCodingCategory = NSEntityDescription.insertNewObject(forEntityName: "Category", into: viewContext)
+        vibeCodingCategory.setValue("Vibe Coding", forKey: "name")
+        vibeCodingCategory.setValue(Int16(1), forKey: "order")
+        vibeCodingCategory.setValue(UUID(), forKey: "id")
+        
+        // Create default prompts
+        let defaultPrompts = [
+            ("agentrules", "You are a disciplined AI coding assistant embedded in my development environment. You are not an autonomous agent; you are a collaborator under supervision. Follow the rules below at all times unless explicitly told otherwise.\n\nCore Rules:\n\t1.\tNo Autonomous Implementation\nDo not implement new features, refactorings, or architectural changes without explicit user approval.\n\n\t2.\tFrequent Check-Ins\nAfter each major step, change, or discovery (including test outcomes or roadblocks), stop and report back to me. Await feedback before continuing.\n\n\t3.\tRespect Feature Intentions\nDo not \"solve\" bugs or obstacles by eliminating or working around the intended feature. Instead, report the issue to me and wait for clarification or a decision from me on how to proceed.\n\n\t4.\tDo Not Modify the Plan Midstream\nDo not revise your project plan or execution strategy based on speculative insights or comments unless the I explicitly approves a plan modification.\n\n\t5.\tPre-Implementation Review\nBefore implementing a new feature or fix, write up a short technical implementation specification and review it with me. Proceed only once I approve both the what and the how.\n\n\t6.\tTesting Is a Stop Point\nWhen a test confirms a feature or bug fix is complete, pause and notify me so I can verify and optionally commit the change to git. Do not continue unprompted.\n\n\t7.\tClarity Over Creativity\nYour job is not to anticipate what I might want. Your job is to ask when in doubt and document clearly. Err on the side of caution.", vibeCodingCategory),
+            ("itp ", "Go ahead and implement this plan.", vibeCodingCategory),
+            ("revproj", "Please review this project and report to me your understanding of the functionality of this project at a high level. Do not modify anything.", vibeCodingCategory),
+            ("tipp", "Please make a technical implementation plan with me and seek approval before proceeding. Do not include a timeline.", vibeCodingCategory)
+        ]
+        
+        for (trigger, expansion, category) in defaultPrompts {
+            let prompt = NSEntityDescription.insertNewObject(forEntityName: "Prompt", into: viewContext)
+            prompt.setValue(UUID(), forKey: "id")
+            prompt.setValue(trigger, forKey: "trigger")
+            prompt.setValue(expansion, forKey: "expansion")
+            prompt.setValue(true, forKey: "enabled")
+            prompt.setValue(category, forKey: "category")
         }
         
-        print("ContentView: handleDefaultPrompts completed")
-    }
-    
-    private func handleExportData() {
-        if let exportedURL = dataExportImportService.exportDataToJSONFile() {
-            exportSuccessMessage = "Data exported successfully to:\n\(exportedURL.path)"
-            showingExportSuccessAlert = true
-        } else {
-            importErrorMessage = "Failed to export data. Please try again."
-            showingImportErrorAlert = true
+        // Save to Core Data (and CloudKit automatically)
+        do {
+            try viewContext.save()
+            print("ContentView: Default prompts saved successfully")
+        } catch {
+            print("ContentView: Error saving default prompts: \(error)")
         }
     }
-    
-    private func handleImportData() {
-        let result = dataExportImportService.importDataFromJSONFile()
-        
-        switch result {
-        case .success(let categoriesAdded, let promptsAdded):
-            importSuccessMessage = "Import completed successfully!\n\nCategories added: \(categoriesAdded)\nPrompts added: \(promptsAdded)"
-            showingImportSuccessAlert = true
-            
-            // Refresh the view models
-            categoryListVM.loadCategories()
-            promptListVM.loadPrompts()
-            
-        case .failure(let error):
-            importErrorMessage = error.localizedDescription
-            showingImportErrorAlert = true
-        }
-    }
-}
-
-// MARK: - AddPromptView
-struct AddPromptView: View {
-    @ObservedObject var viewModel: PromptListViewModel
-    @Binding var selectedCategorySelection: CategorySelection?
-    @ObservedObject var categoryListVM: CategoryListViewModel
-    
-    @State private var trigger: String = ""
-    @State private var expansion: String = ""
-    @State private var selectedCategoryForPrompt: Category?
-    @Environment(\.dismiss) var dismiss
-    
-    @State private var showingValidationErrorAlert = false
-    @State private var validationErrorMessage = ""
-
-    var body: some View {
-        NavigationView {
-            Form {
-                VStack(alignment: .leading, spacing: 15) {
-                    Text("New Snippet").font(.title2)
-
-                    LabeledContent {
-                        TextField("e.g. ;hello", text: $trigger)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: .infinity)
-                    } label: {
-                        Text("Trigger:")
-                    }
-
-                    LabeledContent {
-                        TextEditor(text: $expansion)
-                            .frame(minHeight: 150, maxHeight: .infinity)
-                            .border(Color.gray.opacity(0.3), width: 1)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .frame(maxWidth: .infinity)
-                    } label: {
-                        Text("Expansion:")
-                    }
-
-                    LabeledContent {
-                        Picker("Category", selection: $selectedCategoryForPrompt) {
-                            ForEach(categoryListVM.categories) { category in
-                                Text(category.name).tag(category as Category?)
-                            }
-                        }
-                    } label: {
-                        Text("Category:")
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .padding()
-            .navigationTitle("Add Snippet")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if trigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            validationErrorMessage = "Trigger cannot be empty."
-                            showingValidationErrorAlert = true
-                            return
-                        }
-                        if expansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            validationErrorMessage = "Expansion cannot be empty."
-                            showingValidationErrorAlert = true
-                            return
-                        }
-                        viewModel.addPrompt(trigger: trigger, expansion: expansion, category: selectedCategoryForPrompt)
-                        dismiss()
-                    }
-                    .disabled(trigger.isEmpty || expansion.isEmpty)
-                }
-            }
-        }
-        .onAppear {
-            if let currentSelection = selectedCategorySelection {
-                switch currentSelection {
-                case .all:
-                    selectedCategoryForPrompt = categoryListVM.categories.first
-                case .category(let category):
-                    selectedCategoryForPrompt = category
-                }
-            } else {
-                selectedCategoryForPrompt = categoryListVM.categories.first
-            }
-        }
-        .alert("Validation Error", isPresented: $showingValidationErrorAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(validationErrorMessage)
-        }
-    }
-}
-
-// MARK: - EditPromptView
-struct EditPromptView: View {
-    @ObservedObject var viewModel: PromptListViewModel
-    let prompt: Prompt
-    @ObservedObject var categoryListVM: CategoryListViewModel
-
-    @State private var trigger: String
-    @State private var expansion: String
-    @State private var selectedCategoryID: PersistentIdentifier?
-    
-    @Environment(\.dismiss) var dismiss
-    
-    @State private var showingValidationErrorAlert = false
-    @State private var validationErrorMessage = ""
-
-    init(viewModel: PromptListViewModel, prompt: Prompt, categoryListVM: CategoryListViewModel) {
-        self.viewModel = viewModel
-        self.prompt = prompt
-        self.categoryListVM = categoryListVM
-        _trigger = State(initialValue: prompt.trigger)
-        _expansion = State(initialValue: prompt.expansion)
-        _selectedCategoryID = State(initialValue: prompt.category?.id)
-    }
-
-    var body: some View {
-        NavigationView {
-            Form {
-                VStack(alignment: .leading, spacing: 15) {
-                    Text("Edit Snippet").font(.title2)
-
-                    LabeledContent {
-                        TextField("Trigger", text: $trigger)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: .infinity)
-                    } label: {
-                        Text("Trigger:")
-                    }
-
-                    LabeledContent {
-                        TextEditor(text: $expansion)
-                            .frame(minHeight: 150, maxHeight: .infinity)
-                            .border(Color.gray.opacity(0.3), width: 1)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .frame(maxWidth: .infinity)
-                    } label: {
-                        Text("Expansion:")
-                    }
-
-                    LabeledContent {
-                        Picker("Category", selection: $selectedCategoryID) {
-                            Text("No Category").tag(nil as PersistentIdentifier?)
-                            ForEach(categoryListVM.categories) { cat in
-                                Text(cat.name).tag(cat.id as PersistentIdentifier?)
-                            }
-                        }
-                    } label: {
-                        Text("Category:")
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .padding()
-            .navigationTitle("Edit Snippet")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save Changes") {
-                        if trigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            validationErrorMessage = "Trigger cannot be empty."
-                            showingValidationErrorAlert = true
-                            return
-                        }
-                        if expansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            validationErrorMessage = "Expansion cannot be empty."
-                            showingValidationErrorAlert = true
-                            return
-                        }
-                        let newCategory = categoryListVM.categories.first(where: { $0.id == selectedCategoryID })
-                        viewModel.updatePrompt(prompt, newTrigger: trigger, newExpansion: expansion, newCategory: newCategory)
-                        dismiss()
-                    }
-                    .disabled(trigger.isEmpty || expansion.isEmpty)
-                }
-            }
-        }
-        .alert("Validation Error", isPresented: $showingValidationErrorAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(validationErrorMessage)
-        }
-    }
-}
-
-// MARK: - CategoryListView
-struct CategoryListView: View {
-    @ObservedObject var viewModel: CategoryListViewModel
-    @Binding var selectedCategorySelection: CategorySelection?
-    @Binding var showingAddCategoryAlert: Bool
-
-    @State private var showingRenameCategoryAlert = false
-    @State private var categoryToRename: Category?
-    @State private var renamedCategoryName: String = ""
-
-    @State private var showingDeleteCategoryAlert = false
-    @State private var categoryToDelete: Category?
-    
-    var body: some View {
-        VStack(spacing: 0) { 
-            List(selection: $selectedCategorySelection) {
-                HStack {
-                    Image(systemName: "list.bullet")
-                        .foregroundColor(.accentColor)
-                    Text("All")
-                        .fontWeight(.medium)
-                }
-                .tag(CategorySelection.all)
-                .onTapGesture {
-                    selectedCategorySelection = .all
-                }
-
-                ForEach(viewModel.categories, id: \.id) { category in
-                    HStack {
-                        Image(systemName: "folder")
-                            .foregroundColor(.secondary)
-                        Text(category.name)
-                    }
-                    .tag(CategorySelection.category(category))
-                    .contextMenu {
-                        Button("Rename") {
-                            categoryToRename = category
-                            renamedCategoryName = category.name
-                            showingRenameCategoryAlert = true
-                        }
-                        Button("Delete", role: .destructive) {
-                            if category.name == "Uncategorized" {
-                                print("The 'Uncategorized' category cannot be deleted.")
-                            } else {
-                                categoryToDelete = category
-                                showingDeleteCategoryAlert = true
-                            }
-                        }
-                    }
-                    .onTapGesture {
-                        selectedCategorySelection = .category(category)
-                    }
-                }
-                .onMove(perform: viewModel.reorderCategories)
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        let category = viewModel.categories[index]
-                        if category.name == "Uncategorized" {
-                            print("The 'Uncategorized' category cannot be deleted.")
-                        } else {
-                            categoryToDelete = category
-                            showingDeleteCategoryAlert = true
-                        }
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationTitle("Categories")
-            
-            HStack(spacing: 8) {
-                Button(action: {
-                    showingAddCategoryAlert = true
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.primary)
-                }
-                .buttonStyle(.borderless)
-                .help("Add Category")
-                
-                Button(action: {
-                    if let selectedCategorySelection = selectedCategorySelection,
-                       case .category(let category) = selectedCategorySelection {
-                        if category.name == "Uncategorized" {
-                            print("The 'Uncategorized' category cannot be deleted via the toolbar button.")
-                        } else {
-                            categoryToDelete = category
-                            showingDeleteCategoryAlert = true
-                        }
-                    }
-                }) {
-                    Image(systemName: "minus")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(canDeleteSelectedCategory ? .primary : .secondary)
-                }
-                .buttonStyle(.borderless)
-                .disabled(!canDeleteSelectedCategory)
-                .help("Delete Category")
-                
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(NSColor.controlBackgroundColor))
-            .border(Color(NSColor.separatorColor), width: 0.5)
-        }
-        .alert("Rename Category", isPresented: $showingRenameCategoryAlert, presenting: categoryToRename) { categoryToEdit in
-            TextField("New Name", text: $renamedCategoryName)
-            Button("Rename") {
-                viewModel.renameCategory(categoryToEdit, newName: renamedCategoryName)
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: { categoryToEdit in
-            Text("Enter the new name for \"\(categoryToEdit.name)\".")
-        }
-        .alert("Delete Category", isPresented: $showingDeleteCategoryAlert, presenting: categoryToDelete) { categoryToDel in
-            Button("Delete", role: .destructive) {
-                if categoryToDel.name == "Uncategorized" {
-                    print("The 'Uncategorized' category cannot be deleted.")
-                    return
-                }
-                viewModel.deleteCategory(categoryToDel)
-                if let currentSelection = selectedCategorySelection,
-                   case .category(let selectedCategory) = currentSelection,
-                   selectedCategory.id == categoryToDel.id {
-                    selectedCategorySelection = .all
-                }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: { categoryToDel in
-            let promptCount = categoryToDel.prompts?.count ?? 0
-            let promptText = promptCount == 1 ? "prompt" : "prompts"
-            return Text("Are you sure you want to delete the category \"\(categoryToDel.name)\"? This will permanently delete all \(promptCount) \(promptText) in this category. This action cannot be undone.")
-        }
-    }
-    
-    private var canDeleteSelectedCategory: Bool {
-        guard let selectedCategorySelection = selectedCategorySelection,
-              case .category(let category) = selectedCategorySelection else {
-            return false
-        }
-        return category.name != "Uncategorized"
-    }
-}
-
-// MARK: - PromptListView
-struct PromptListView: View {
-    @ObservedObject var viewModel: PromptListViewModel
-    @Binding var promptToEdit: Prompt? 
-    
-    @State private var showingDeleteAlert = false
-    @State private var promptToDelete: Prompt?
-
-    var body: some View {
-        VStack {
-            if let categorySelection = viewModel.selectedCategorySelection {
-                Text(categorySelection.isAll ? "All Prompts" : "Prompts in \(categorySelection.displayName)")
-                    .font(.headline)
-                    .padding(.top)
-                
-                List {
-                    ForEach(viewModel.prompts) { prompt in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(prompt.trigger)
-                                    .font(.title3)
-                                Text(prompt.expansion)
-                                    .font(.caption)
-                                    .lineLimit(2)
-                                    .foregroundColor(.gray)
-                            }
-                            Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { prompt.enabled },
-                                set: { newValue in
-                                    prompt.enabled = newValue
-                                }
-                            ))
-                        }
-                        .contextMenu {
-                            Button {
-                                promptToEdit = prompt
-                            } label: {
-                                Label("Edit Prompt", systemImage: "pencil")
-                            }
-                            Button(role: .destructive) {
-                                promptToDelete = prompt
-                                showingDeleteAlert = true
-                            } label: {
-                                Label("Delete Prompt", systemImage: "trash")
-                            }
-                        }
-                        .onTapGesture { 
-                            promptToEdit = prompt
-                        }
-                    }
-                    .onDelete(perform: deletePrompts)
-                }
-            } else {
-                Text("Select a category to see its prompts, or add a new category and prompts.")
-                    .foregroundColor(.secondary)
-            }
-        }
-        .navigationTitle("Prompts")
-        .alert("Delete Prompt", isPresented: $showingDeleteAlert, presenting: promptToDelete) { promptToDel in
-            Button("Delete", role: .destructive) {
-                viewModel.deletePrompt(promptToDel)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { promptToDel in
-            Text("Are you sure you want to delete the prompt with trigger \(promptToDel.trigger)? This action cannot be undone.")
-        }
-    }
-    
-    private func deletePrompts(offsets: IndexSet) {
-        for index in offsets {
-            viewModel.deletePrompt(viewModel.prompts[index])
-        }
-    }
-}
-
-// MARK: - WindowDelegateWrapper
-class WindowDelegateWrapper: ObservableObject {
-    let delegate = WindowDelegate()
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        let container = try! ModelContainer(for: Prompt.self, Category.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-        let triggerMonitor = TriggerMonitorService(modelContext: container.mainContext)
+        let coreDataStack = CoreDataStack.shared
         
-        return ContentView(modelContext: container.mainContext, triggerMonitor: triggerMonitor, cloudKitService: CloudKitService())
-            .modelContainer(for: [Prompt.self, Category.self], inMemory: true)
+        return ContentView(
+            viewContext: coreDataStack.viewContext,
+            triggerMonitor: nil,
+            cloudKitService: CloudKitService()
+        )
+        .environmentObject(coreDataStack)
+        .environmentObject(CloudKitService())
     }
 }

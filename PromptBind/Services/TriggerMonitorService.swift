@@ -1,9 +1,9 @@
 import AppKit
-import SwiftData
+import CoreData
 import Combine
 
 class TriggerMonitorService: ObservableObject {
-    @Published private(set) var prompts: [Prompt] = []
+    @Published private(set) var prompts: [NSManagedObject] = []
     
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -11,17 +11,17 @@ class TriggerMonitorService: ObservableObject {
     private var currentBuffer: [String] = []
     private let maxBufferLength = 50
     
-    private var modelContext: ModelContext
+    private var viewContext: NSManagedObjectContext
     
-    init(modelContext: ModelContext) {
-        self.modelContext = modelContext
+    init(viewContext: NSManagedObjectContext) {
+        self.viewContext = viewContext
         loadAllPrompts()
     }
     
     func loadAllPrompts() {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
         do {
-            let descriptor = FetchDescriptor<Prompt>()
-            self.prompts = try modelContext.fetch(descriptor)
+            self.prompts = try viewContext.fetch(request)
             print("TriggerMonitor loaded \(self.prompts.count) prompts")
         } catch {
             print("Failed to fetch prompts: \(error)")
@@ -29,7 +29,7 @@ class TriggerMonitorService: ObservableObject {
     }
     
     @MainActor
-    func updatePrompts(_ newPrompts: [Prompt]) {
+    func updatePrompts(_ newPrompts: [NSManagedObject]) {
         loadAllPrompts()
     }
     
@@ -90,16 +90,21 @@ class TriggerMonitorService: ObservableObject {
             
             let currentText = currentBuffer.joined()
             
-            for prompt in prompts where prompt.enabled {
-                if currentText.hasSuffix(prompt.trigger) {
-                    print("Trigger matched: \(prompt.trigger) -> \(prompt.expansion)")
-                    deleteCharacters(count: prompt.trigger.count)
-                    
-                    insertText(prompt.expansion)
-                    
-                    currentBuffer = []
-                    
-                    return nil
+            for prompt in prompts {
+                if let enabled = prompt.value(forKey: "enabled") as? Bool,
+                   let trigger = prompt.value(forKey: "trigger") as? String,
+                   let expansion = prompt.value(forKey: "expansion") as? String,
+                   enabled {
+                    if currentText.hasSuffix(trigger) {
+                        print("Trigger matched: \(trigger) -> \(expansion)")
+                        deleteCharacters(count: trigger.count)
+                        
+                        insertText(expansion)
+                        
+                        currentBuffer = []
+                        
+                        return nil
+                    }
                 }
             }
         }

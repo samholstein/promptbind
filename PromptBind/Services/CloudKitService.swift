@@ -1,6 +1,6 @@
 import Foundation
 import CloudKit
-import SwiftData
+import CoreData
 
 @MainActor
 class CloudKitService: ObservableObject {
@@ -10,7 +10,6 @@ class CloudKitService: ObservableObject {
     @Published var isSyncing: Bool = false
     
     private var container: CKContainer?
-    private let recordZone = CKRecordZone(zoneName: "PromptBindZone")
     
     init() {
         print("CloudKitService: Initializing...")
@@ -18,27 +17,18 @@ class CloudKitService: ObservableObject {
     }
     
     private func setupCloudKit() {
-        // For now, disable CloudKit until container is properly configured
-        print("CloudKitService: CloudKit disabled - using local storage only")
-        accountStatus = .noAccount
-        isSignedIn = false
+        print("CloudKitService: Setting up CloudKit...")
         
-        // Uncomment this when CloudKit container is ready:
-        /*
-        do {
-            container = CKContainer(identifier: "iCloud.com.samholstein.PromptBind")
-            checkAccountStatus()
-        } catch {
-            print("CloudKitService: Failed to initialize CloudKit container: \(error)")
-            accountStatus = .noAccount
-            isSignedIn = false
-        }
-        */
+        // Use our configured container
+        container = CKContainer(identifier: "iCloud.samholstein.PromptBind")
+        checkAccountStatus()
     }
     
     func checkAccountStatus() {
         guard let container = container else {
             print("CloudKitService: No CloudKit container available")
+            accountStatus = .noAccount
+            isSignedIn = false
             return
         }
         
@@ -62,50 +52,23 @@ class CloudKitService: ObservableObject {
         }
     }
     
-    func hasAddedDefaultPrompts() async -> Bool {
-        print("CloudKitService: CloudKit disabled - returning false for default prompts")
-        return false
+    func hasAddedDefaultPrompts(context: NSManagedObjectContext) async -> Bool {
+        print("CloudKitService: Checking if default prompts have been added...")
+        
+        // Check if we have any prompts in Core Data
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
+        do {
+            let count = try context.count(for: request)
+            print("CloudKitService: Found \(count) existing prompts")
+            return count > 0
+        } catch {
+            print("CloudKitService: Error checking prompt count: \(error)")
+            return false
+        }
     }
     
     func markDefaultPromptsAsAdded() async {
-        print("CloudKitService: CloudKit disabled - cannot mark default prompts as added")
-    }
-    
-    // MARK: - Sync Methods (disabled for now)
-    
-    func syncPromptsToCloud(_ prompts: [Prompt]) async {
-        print("CloudKitService: CloudKit disabled - sync to cloud not available")
-    }
-    
-    func syncPromptsFromCloud() async -> [CloudKitPrompt] {
-        print("CloudKitService: CloudKit disabled - sync from cloud not available")
-        return []
-    }
-}
-
-// MARK: - CloudKit Data Models
-
-struct CloudKitPrompt {
-    let id: String
-    let trigger: String
-    let expansion: String
-    let enabled: Bool
-    let categoryName: String?
-    let modifiedDate: Date
-    
-    init?(from record: CKRecord) {
-        guard let trigger = record["trigger"] as? String,
-              let expansion = record["expansion"] as? String,
-              let enabled = record["enabled"] as? Bool else {
-            return nil
-        }
-        
-        self.id = record.recordID.recordName
-        self.trigger = trigger
-        self.expansion = expansion
-        self.enabled = enabled
-        self.categoryName = record["categoryName"] as? String
-        self.modifiedDate = record["modifiedDate"] as? Date ?? Date()
+        print("CloudKitService: Default prompts marked as added (handled by Core Data)")
     }
 }
 

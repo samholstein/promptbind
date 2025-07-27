@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var cloudKitService: CloudKitService
+    @EnvironmentObject private var coreDataStack: CoreDataStack
     @Environment(\.dismiss) private var dismiss
     
     @State private var showingCloudKitHelp = false
@@ -35,19 +36,19 @@ struct SettingsView: View {
                     }
                     
                     HStack {
-                        Image(systemName: cloudKitService.isSignedIn ? "icloud" : "icloud.slash")
-                            .foregroundColor(cloudKitService.isSignedIn ? .blue : .orange)
+                        Image(systemName: coreDataStack.isCloudKitReady ? "icloud" : "icloud.slash")
+                            .foregroundColor(coreDataStack.isCloudKitReady ? .blue : .orange)
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Status: \(cloudKitService.accountStatus.description)")
                                 .font(.body)
                             
-                            if cloudKitService.isSignedIn {
+                            if coreDataStack.isCloudKitReady {
                                 Text("Your prompts will sync across all your devices")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             } else {
-                                Text("Sign into iCloud in System Preferences to enable sync")
+                                Text(coreDataStack.cloudKitError ?? "Sign into iCloud in System Preferences to enable sync")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -55,7 +56,7 @@ struct SettingsView: View {
                         
                         Spacer()
                         
-                        if !cloudKitService.isSignedIn {
+                        if !coreDataStack.isCloudKitReady {
                             Button("Open System Preferences") {
                                 openSystemPreferences()
                             }
@@ -63,20 +64,10 @@ struct SettingsView: View {
                         } else {
                             Button("Refresh Status") {
                                 cloudKitService.checkAccountStatus()
+                                coreDataStack.checkCloudKitStatus()
                             }
                             .controlSize(.small)
                         }
-                    }
-                    
-                    if let errorMessage = cloudKitService.errorMessage {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle")
-                                .foregroundColor(.orange)
-                            Text(errorMessage)
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
-                        .padding(.top, 4)
                     }
                 }
                 .padding()
@@ -151,5 +142,6 @@ struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView()
             .environmentObject(CloudKitService())
+            .environmentObject(CoreDataStack.shared)
     }
 }
