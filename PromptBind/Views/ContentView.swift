@@ -121,9 +121,6 @@ struct ContentView: View {
         NavigationSplitView {
             // Sidebar: All Prompts + Categories
             VStack(spacing: 0) {
-                // CloudKit status bar at top of sidebar
-                cloudKitStatusBar
-                
                 // Sidebar content
                 List(selection: $selectedItem) {
                     // All Prompts section
@@ -255,7 +252,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingAddPrompt) {
-            AddPromptSheet(
+            PromptSheet(
                 viewContext: viewContext,
                 selectedCategory: selectedCategory,
                 categories: Array(categories)
@@ -612,7 +609,7 @@ struct PromptsListView: View {
             }
         }
         .sheet(isPresented: $showingAddPrompt) {
-            AddPromptSheet(
+            PromptSheet(
                 viewContext: viewContext,
                 selectedCategory: category,
                 categories: categories
@@ -620,7 +617,7 @@ struct PromptsListView: View {
         }
         .background(
             ManagedObjectSheetBinding(item: $editingPrompt) { prompt in
-                EditPromptSheet(
+                PromptSheet(
                     viewContext: viewContext,
                     prompt: prompt,
                     categories: categories
@@ -689,7 +686,7 @@ struct AllPromptsView: View {
             }
         }
         .sheet(isPresented: $showingAddPrompt) {
-            AddPromptSheet(
+            PromptSheet(
                 viewContext: viewContext,
                 selectedCategory: nil,
                 categories: categories
@@ -697,7 +694,7 @@ struct AllPromptsView: View {
         }
         .background(
             ManagedObjectSheetBinding(item: $editingPrompt) { prompt in
-                EditPromptSheet(
+                PromptSheet(
                     viewContext: viewContext,
                     prompt: prompt,
                     categories: categories
