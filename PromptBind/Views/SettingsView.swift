@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var cloudKitService: CloudKitService
     @EnvironmentObject private var coreDataStack: CoreDataStack
+    @StateObject private var preferencesManager = PreferencesManager.shared
     
     @State private var showingCloudKitHelp = false
     @State private var showingClearDataWarning = false
@@ -11,174 +12,131 @@ struct SettingsView: View {
     @State private var clearDataError: String?
     
     var body: some View {
-        TabView {
-            // General Settings Tab
-            VStack(alignment: .leading, spacing: 20) {
-                // App Settings Section
-                GroupBox {
+        VStack(alignment: .leading, spacing: 20) {
+            // General Settings Section
+            GroupBox {
+                HStack {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("General")
                             .font(.headline)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            Toggle("Launch at startup", isOn: .constant(false))
-                                .disabled(true) // Will implement later
-                            
-                            Toggle("Show in menu bar only", isOn: .constant(false))
-                                .disabled(true) // Will implement later
-                            
-                            HStack {
-                                Text("Trigger monitoring:")
-                                Spacer()
-                                Text("Active")
-                                    .foregroundColor(.green)
-                                    .font(.caption)
-                            }
+                            Toggle("Launch at startup", isOn: $preferencesManager.launchAtStartup)
                         }
                     }
-                    .padding()
+                    Spacer()
                 }
-                
-                // About Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("About")
-                            .font(.headline)
-                        
-                        HStack {
-                            Text("Version:")
-                            Spacer()
-                            Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        HStack {
-                            Text("Build:")
-                            Spacer()
-                            Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding()
-                }
-                
-                Spacer()
-            }
-            .padding()
-            .tabItem {
-                Label("General", systemImage: "gear")
+                .padding()
             }
             
-            // iCloud Sync Tab
-            VStack(alignment: .leading, spacing: 20) {
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("iCloud Sync")
-                                .font(.headline)
-                            Spacer()
-                            Button("Help") {
-                                showingCloudKitHelp = true
-                            }
-                            .font(.caption)
-                        }
-                        
-                        HStack {
-                            Image(systemName: coreDataStack.isCloudKitReady ? "icloud" : "icloud.slash")
-                                .foregroundColor(coreDataStack.isCloudKitReady ? .blue : .orange)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Status: \(cloudKitService.accountStatus.description)")
-                                    .font(.body)
-                                
-                                if coreDataStack.isCloudKitReady {
-                                    Text("Your prompts will sync across all your devices")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    Text(coreDataStack.cloudKitError ?? "Sign into iCloud in System Preferences to enable sync")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            
-                            Spacer()
-                            
-                            if !coreDataStack.isCloudKitReady {
-                                Button("Open System Preferences") {
-                                    openSystemPreferences()
-                                }
-                                .controlSize(.small)
-                            } else {
-                                Button("Refresh Status") {
-                                    cloudKitService.checkAccountStatus()
-                                    coreDataStack.checkCloudKitStatus()
-                                }
-                                .controlSize(.small)
-                            }
-                        }
-                    }
-                    .padding()
-                }
-                
-                // Data Management Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Data Management")
+            // iCloud Sync Section
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("iCloud Sync")
                             .font(.headline)
+                        Spacer()
+                        Button("Help") {
+                            showingCloudKitHelp = true
+                        }
+                        .font(.caption)
+                    }
+                    
+                    HStack {
+                        Image(systemName: coreDataStack.isCloudKitReady ? "icloud" : "icloud.slash")
+                            .foregroundColor(coreDataStack.isCloudKitReady ? .blue : .orange)
                         
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Status: \(cloudKitService.accountStatus.description)")
+                                .font(.body)
+                            
+                            if coreDataStack.isCloudKitReady {
+                                Text("Your prompts will sync across all your devices")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text(coreDataStack.cloudKitError ?? "Sign into iCloud in System Preferences to enable sync")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        if !coreDataStack.isCloudKitReady {
+                            Button("Open System Preferences") {
+                                openSystemPreferences()
+                            }
+                            .controlSize(.small)
+                        } else {
+                            Button("Refresh Status") {
+                                cloudKitService.checkAccountStatus()
+                                coreDataStack.checkCloudKitStatus()
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                }
+                .padding()
+            }
+            
+            // Data Management Section
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Data Management")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Clear Account Data")
+                                    .font(.body)
+                                Text("Remove all prompts and categories from this device and iCloud")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button("Clear Data...") {
+                                showingClearDataWarning = true
+                            }
+                            .foregroundColor(.red)
+                            .controlSize(.small)
+                            .disabled(isClearingData)
+                        }
+                        
+                        if isClearingData {
                             HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Clear Account Data")
-                                        .font(.body)
-                                    Text("Remove all prompts and categories from this device and iCloud")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                Spacer()
-                                
-                                Button("Clear Data...") {
-                                    showingClearDataWarning = true
-                                }
-                                .foregroundColor(.red)
-                                .controlSize(.small)
-                                .disabled(isClearingData)
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                Text("Clearing data...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                            
-                            if isClearingData {
-                                HStack {
-                                    ProgressView()
-                                        .scaleEffect(0.7)
-                                    Text("Clearing data...")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            
-                            if let error = clearDataError {
-                                HStack {
-                                    Image(systemName: "exclamationmark.triangle")
-                                        .foregroundColor(.red)
-                                    Text(error)
-                                        .font(.caption)
-                                        .foregroundColor(.red)
-                                }
+                        }
+                        
+                        if let error = clearDataError {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundColor(.red)
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
                             }
                         }
                     }
-                    .padding()
                 }
-                
-                Spacer()
+                .padding()
             }
-            .padding()
-            .tabItem {
-                Label("Sync", systemImage: "icloud")
-            }
+            
+            Spacer()
         }
+        .padding()
         .frame(minWidth: 500, idealWidth: 500, maxWidth: 600, minHeight: 400, idealHeight: 450, maxHeight: 550)
+        .onAppear {
+            preferencesManager.syncWithSystem()
+        }
         .alert("iCloud Sync Help", isPresented: $showingCloudKitHelp) {
             Button("OK") { }
         } message: {

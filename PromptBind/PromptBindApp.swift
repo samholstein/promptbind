@@ -7,6 +7,7 @@ struct PromptBindApp: App {
     @StateObject private var coreDataStack = CoreDataStack.shared
     @StateObject private var cloudKitService = CloudKitService()
     @StateObject private var windowManager = WindowManager.shared
+    @StateObject private var preferencesManager = PreferencesManager.shared
     
     @State private var showingAccessibilityPermissionSheet = false
     @State private var permissionCheckTimer: Timer?
@@ -27,6 +28,7 @@ struct PromptBindApp: App {
             .environmentObject(coreDataStack)
             .environmentObject(cloudKitService)
             .environmentObject(windowManager)
+            .environmentObject(preferencesManager)
             .sheet(isPresented: $showingAccessibilityPermissionSheet) {
                 AccessibilityPermissionView()
             }
@@ -93,6 +95,7 @@ struct PromptBindApp: App {
             SettingsView()
                 .environmentObject(cloudKitService)
                 .environmentObject(coreDataStack)
+                .environmentObject(preferencesManager)
         }
         .windowResizability(.contentSize)
         .windowToolbarStyle(.unified)
