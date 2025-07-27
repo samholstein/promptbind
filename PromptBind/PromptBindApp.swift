@@ -8,7 +8,7 @@ struct PromptBindApp: App {
     
     @State private var showingAccessibilityPermissionSheet = false
     @State private var permissionCheckTimer: Timer?
-    @StateObject private var statusBarManager = StatusBarManager()
+    @State private var statusBarManager: StatusBarManager?
     @State private var isWindowVisible = true
     
     // Keep trigger monitor at app level to ensure it persists
@@ -30,41 +30,51 @@ struct PromptBindApp: App {
                     AccessibilityPermissionView()
                 }
                 .onAppear {
+                    print("PromptBindApp: onAppear called - THIS SHOULD SHOW UP")
+                    
                     // Initialize trigger monitor if not already created
                     if triggerMonitor == nil {
                         triggerMonitor = TriggerMonitorService(modelContext: container.mainContext)
+                        print("PromptBindApp: Created TriggerMonitorService")
                     }
                     
+                    // Check accessibility permission once
                     checkAccessibilityPermission()
-                    // Start polling for permission status
-                    permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                        checkAccessibilityPermission()
+                    
+                    // Only start polling if permission is not granted
+                    if !AXIsProcessTrusted() {
+                        // Start polling for permission status
+                        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+                            checkAccessibilityPermission()
+                        }
+                    } else {
+                        // Permission is already granted, start monitoring
+                        triggerMonitor?.startMonitoring()
                     }
                     
-                    // Set up status bar callbacks
-                    setupStatusBarCallbacks()
-                    
-                    // Start trigger monitoring at app level
-                    triggerMonitor?.startMonitoring()
-                    
-                    // Update status bar state - initially window is visible
-                    statusBarManager.isWindowVisible = true
-                    
-                    // Ensure the window is visible and the app is in the foreground
+                    // Set up window first
                     DispatchQueue.main.async {
                         NSApplication.shared.setActivationPolicy(.regular)
                         NSApplication.shared.activate(ignoringOtherApps: true)
-                        if let window = NSApplication.shared.windows.first {
-                            window.makeKeyAndOrderFront(nil)
+                    }
+                    
+                    // Create status bar AFTER app is fully initialized
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        print("PromptBindApp: Creating StatusBarManager after delay")
+                        if statusBarManager == nil {
+                            statusBarManager = StatusBarManager()
+                            print("PromptBindApp: StatusBarManager created: \(statusBarManager != nil)")
+                            setupStatusBarCallbacks()
                         }
                     }
                 }
                 .onDisappear {
+                    print("PromptBindApp: onDisappear called")
                     permissionCheckTimer?.invalidate()
                     permissionCheckTimer = nil
                     
                     // Update status bar state
-                    statusBarManager.isWindowVisible = false
+                    statusBarManager?.isWindowVisible = false
                     updateAppActivationPolicy(windowVisible: false)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .windowWillHide)) { _ in
@@ -90,17 +100,17 @@ struct PromptBindApp: App {
     
     private func setupStatusBarCallbacks() {
         print("PromptBindApp: Setting up status bar callbacks...")
-        statusBarManager.onShowWindow = {
+        statusBarManager?.onShowWindow = {
             print("PromptBindApp: Status bar show window callback")
-            showWindow()
+            self.showWindow()
         }
         
-        statusBarManager.onHideWindow = {
+        statusBarManager?.onHideWindow = {
             print("PromptBindApp: Status bar hide window callback")
-            hideWindow()
+            self.hideWindow()
         }
         
-        statusBarManager.onQuitApp = {
+        statusBarManager?.onQuitApp = {
             print("PromptBindApp: Status bar quit app callback")
             NSApplication.shared.terminate(nil)
         }
@@ -122,7 +132,7 @@ struct PromptBindApp: App {
             print("PromptBindApp: ERROR - No window found")
         }
         
-        statusBarManager.isWindowVisible = true
+        statusBarManager?.isWindowVisible = true
     }
     
     private func hideWindow() {
@@ -132,7 +142,7 @@ struct PromptBindApp: App {
             window.orderOut(nil)
         }
         
-        statusBarManager.isWindowVisible = false
+        statusBarManager?.isWindowVisible = false
         updateAppActivationPolicy(windowVisible: false)
     }
     
@@ -151,13 +161,32 @@ struct PromptBindApp: App {
 
     private func checkAccessibilityPermission() {
         let isTrusted = AXIsProcessTrusted()
+        print("PromptBindApp: Accessibility permission check - isTrusted: \(isTrusted)")
+        
         if !isTrusted && !showingAccessibilityPermissionSheet {
+            print("PromptBindApp: Showing accessibility permission sheet")
             showingAccessibilityPermissionSheet = true
         } else if isTrusted && showingAccessibilityPermissionSheet {
+            print("PromptBindApp: Permission granted, hiding sheet")
             showingAccessibilityPermissionSheet = false
-            // Invalidate timer if permission is granted and sheet is dismissed
+            // Stop polling and start monitoring
             permissionCheckTimer?.invalidate()
             permissionCheckTimer = nil
+            triggerMonitor?.startMonitoring()
+        }
+    }
+    
+    private func testStatusBarDirect() {
+        print("PromptBindApp: Creating direct status bar test")
+        
+        let testItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        
+        if let button = testItem.button {
+            button.title = "DIRECT TEST"
+            button.font = NSFont.boldSystemFont(ofSize: 14)
+            print("PromptBindApp: Direct test item created with title: \(button.title ?? "nil")")
+        } else {
+            print("PromptBindApp: Direct test failed - no button")
         }
     }
 }

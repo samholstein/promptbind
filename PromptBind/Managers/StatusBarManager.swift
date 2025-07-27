@@ -17,87 +17,88 @@ class StatusBarManager: ObservableObject {
     }
     
     init() {
-        print("StatusBarManager: Initializing...")
-        setupStatusBar()
+        print("StatusBarManager: init() called")
+        createStatusBarItem()
     }
     
-    private func setupStatusBar() {
-        print("StatusBarManager: Setting up status bar...")
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private func createStatusBarItem() {
+        print("StatusBarManager: createStatusBarItem() called")
         
-        if let button = statusItem?.button {
-            // Try to load the custom icon first
-            if let iconPath = Bundle.main.path(forResource: "promptbindicon-statusbar", ofType: "png"),
-               let customIcon = NSImage(contentsOfFile: iconPath) {
-                // Resize the icon to be appropriate for status bar (18x18 points)
-                customIcon.size = NSSize(width: 18, height: 18)
-                button.image = customIcon
-                button.image?.isTemplate = true
-                print("StatusBarManager: Custom status bar icon loaded")
-            } else {
-                // Fallback to system icon
-                button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "PromptBind")
-                button.image?.isTemplate = true
-                print("StatusBarManager: Using fallback system icon")
-            }
-        } else {
-            print("StatusBarManager: ERROR - Could not get status bar button")
+        // Create the status item with explicit length
+        statusItem = NSStatusBar.system.statusItem(withLength: 50)
+        
+        guard let statusItem = statusItem else {
+            print("StatusBarManager: ERROR - Failed to create status item")
+            return
         }
         
-        setupMenu()
-    }
-    
-    private func setupMenu() {
-        print("StatusBarManager: Setting up menu...")
+        guard let button = statusItem.button else {
+            print("StatusBarManager: ERROR - Status item has no button")
+            return
+        }
+        
+        print("StatusBarManager: Status item and button created successfully")
+        
+        // Make it as obvious as possible
+        button.title = "TEST"
+        button.font = NSFont.systemFont(ofSize: 12)
+        
+        // Try to set icon too
+        if let iconPath = Bundle.main.path(forResource: "promptbindicon-statusbar", ofType: "png") {
+            print("StatusBarManager: Found icon at path: \(iconPath)")
+            
+            if let customIcon = NSImage(contentsOfFile: iconPath) {
+                print("StatusBarManager: Successfully loaded custom icon")
+                customIcon.size = NSSize(width: 16, height: 16)
+                button.image = customIcon
+                button.imagePosition = .imageLeft
+                button.title = "PB"
+                print("StatusBarManager: Set both image and title")
+            } else {
+                print("StatusBarManager: Failed to load custom icon from file")
+            }
+        } else {
+            print("StatusBarManager: Icon file not found, using text only")
+        }
+        
+        // Create simple menu
         statusBarMenu = NSMenu()
+        let testItem = NSMenuItem(title: "Test Menu Item", action: nil, keyEquivalent: "")
+        statusBarMenu?.addItem(testItem)
         
-        // Show/Hide menu item (will be updated dynamically)
-        let showHideItem = NSMenuItem(title: "Show PromptBind", action: #selector(toggleWindow), keyEquivalent: "")
-        showHideItem.target = self
-        showHideItem.tag = 1
-        statusBarMenu?.addItem(showHideItem)
-        
-        // Separator
-        statusBarMenu?.addItem(NSMenuItem.separator())
-        
-        // Quit menu item
         let quitItem = NSMenuItem(title: "Quit PromptBind", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         statusBarMenu?.addItem(quitItem)
         
-        statusItem?.menu = statusBarMenu
-        print("StatusBarManager: Menu configured with \(statusBarMenu?.items.count ?? 0) items")
+        statusItem.menu = statusBarMenu
+        
+        print("StatusBarManager: Status bar setup complete with title: '\(button.title ?? "nil")'")
+        
+        // Debug: Check if the status item is actually visible
+        print("StatusBarManager: Status item isVisible: \(statusItem.isVisible)")
+        print("StatusBarManager: Status item length: \(statusItem.length)")
+        print("StatusBarManager: Button frame: \(button.frame)")
+        print("StatusBarManager: Button isHidden: \(button.isHidden)")
+        print("StatusBarManager: Button superview: \(button.superview != nil)")
+        
+        // Force the button to be visible
+        button.isHidden = false
+        statusItem.isVisible = true
+        
+        print("StatusBarManager: After forcing visibility - isVisible: \(statusItem.isVisible)")
     }
     
     private func updateMenuItems() {
-        guard let menu = statusBarMenu else { return }
-        
-        // Update the show/hide menu item
-        if let showHideItem = menu.item(withTag: 1) {
-            if isWindowVisible {
-                showHideItem.title = "Hide PromptBind"
-            } else {
-                showHideItem.title = "Show PromptBind"
-            }
-        }
-    }
-    
-    @objc private func toggleWindow() {
-        print("StatusBarManager: Toggle window called")
-        if isWindowVisible {
-            onHideWindow?()
-        } else {
-            onShowWindow?()
-        }
+        // Placeholder for now
     }
     
     @objc private func quitApp() {
         print("StatusBarManager: Quit app called")
-        onQuitApp?()
+        NSApplication.shared.terminate(nil)
     }
     
     deinit {
-        print("StatusBarManager: Deinitializing...")
+        print("StatusBarManager: deinit called - STATUS BAR MANAGER IS BEING DEALLOCATED!")
         if let statusItem = statusItem {
             NSStatusBar.system.removeStatusItem(statusItem)
         }
