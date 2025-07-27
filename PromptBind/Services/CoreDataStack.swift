@@ -9,49 +9,6 @@ class CoreDataStack: ObservableObject {
     @Published var cloudKitError: String?
     
     lazy var persistentContainer: NSPersistentContainer = {
-        // Create the model programmatically
-        let model = createDataModel()
-        let container = NSPersistentCloudKitContainer(name: "PromptBind", managedObjectModel: model)
-        
-        // Configure for CloudKit
-        let storeDescription = container.persistentStoreDescriptions.first!
-        storeDescription.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-        storeDescription.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
-        
-        // Set CloudKit container identifier
-        storeDescription.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-            containerIdentifier: "iCloud.samholstein.PromptBind"
-        )
-        
-        container.loadPersistentStores { [weak self] storeDescription, error in
-            if let error = error {
-                print("Core Data failed to load: \(error.localizedDescription)")
-                self?.cloudKitError = error.localizedDescription
-                self?.isCloudKitReady = false
-            } else {
-                print("Core Data loaded successfully")
-                self?.isCloudKitReady = true
-                self?.cloudKitError = nil
-                
-                // Enable automatic merging
-                container.viewContext.automaticallyMergesChangesFromParent = true
-                container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-                
-                // Watch for CloudKit changes
-                NotificationCenter.default.addObserver(
-                    forName: .NSPersistentStoreRemoteChange,
-                    object: nil,
-                    queue: .main
-                ) { _ in
-                    print("CloudKit remote change detected")
-                }
-            }
-        }
-        
-        return container
-    }()
-    
-    private func createDataModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         
         // Create Category entity
@@ -59,59 +16,65 @@ class CoreDataStack: ObservableObject {
         categoryEntity.name = "Category"
         categoryEntity.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
         
-        let categoryIdAttribute = NSAttributeDescription()
-        categoryIdAttribute.name = "id"
-        categoryIdAttribute.attributeType = .UUIDAttributeType
-        categoryIdAttribute.isOptional = false
+        let categoryId = NSAttributeDescription()
+        categoryId.name = "id"
+        categoryId.attributeType = .UUIDAttributeType
+        categoryId.isOptional = true  // CloudKit requires optional or default value
+        categoryId.defaultValue = UUID()  // Provide default value
         
-        let categoryNameAttribute = NSAttributeDescription()
-        categoryNameAttribute.name = "name"
-        categoryNameAttribute.attributeType = .stringAttributeType
-        categoryNameAttribute.isOptional = false
+        let categoryName = NSAttributeDescription()
+        categoryName.name = "name"
+        categoryName.attributeType = .stringAttributeType
+        categoryName.isOptional = true  // CloudKit requires optional or default value
+        categoryName.defaultValue = ""  // Provide default value
         
-        let categoryOrderAttribute = NSAttributeDescription()
-        categoryOrderAttribute.name = "order"
-        categoryOrderAttribute.attributeType = .integer16AttributeType
-        categoryOrderAttribute.isOptional = false
-        categoryOrderAttribute.defaultValue = 0
+        let categoryOrder = NSAttributeDescription()
+        categoryOrder.name = "order"
+        categoryOrder.attributeType = .integer16AttributeType
+        categoryOrder.isOptional = true  // CloudKit requires optional or default value
+        categoryOrder.defaultValue = 0  // Already had default value
         
-        categoryEntity.properties = [categoryIdAttribute, categoryNameAttribute, categoryOrderAttribute]
+        categoryEntity.properties = [categoryId, categoryName, categoryOrder]
         
         // Create Prompt entity
         let promptEntity = NSEntityDescription()
-        promptEntity.name = "Prompt"
+        promptEntity.name = "Prompt"  
         promptEntity.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
         
-        let promptIdAttribute = NSAttributeDescription()
-        promptIdAttribute.name = "id"
-        promptIdAttribute.attributeType = .UUIDAttributeType
-        promptIdAttribute.isOptional = false
+        let promptId = NSAttributeDescription()
+        promptId.name = "id"
+        promptId.attributeType = .UUIDAttributeType
+        promptId.isOptional = true  // CloudKit requires optional or default value
+        promptId.defaultValue = UUID()  // Provide default value
         
-        let promptTriggerAttribute = NSAttributeDescription()
-        promptTriggerAttribute.name = "trigger"
-        promptTriggerAttribute.attributeType = .stringAttributeType
-        promptTriggerAttribute.isOptional = false
+        let promptTrigger = NSAttributeDescription()
+        promptTrigger.name = "trigger"
+        promptTrigger.attributeType = .stringAttributeType
+        promptTrigger.isOptional = true  // CloudKit requires optional or default value
+        promptTrigger.defaultValue = ""  // Provide default value
         
-        let promptExpansionAttribute = NSAttributeDescription()
-        promptExpansionAttribute.name = "expansion"
-        promptExpansionAttribute.attributeType = .stringAttributeType
-        promptExpansionAttribute.isOptional = false
+        let promptExpansion = NSAttributeDescription()
+        promptExpansion.name = "expansion"
+        promptExpansion.attributeType = .stringAttributeType
+        promptExpansion.isOptional = true  // CloudKit requires optional or default value
+        promptExpansion.defaultValue = ""  // Provide default value
         
-        let promptEnabledAttribute = NSAttributeDescription()
-        promptEnabledAttribute.name = "enabled"
-        promptEnabledAttribute.attributeType = .booleanAttributeType
-        promptEnabledAttribute.isOptional = false
-        promptEnabledAttribute.defaultValue = true
+        let promptEnabled = NSAttributeDescription()
+        promptEnabled.name = "enabled"
+        promptEnabled.attributeType = .booleanAttributeType
+        promptEnabled.isOptional = true  // CloudKit requires optional or default value
+        promptEnabled.defaultValue = true  // Already had default value
         
-        promptEntity.properties = [promptIdAttribute, promptTriggerAttribute, promptExpansionAttribute, promptEnabledAttribute]
+        promptEntity.properties = [promptId, promptTrigger, promptExpansion, promptEnabled]
         
-        // Create relationships - this is the corrected part
+        // Create relationship between Category and Prompt
         let categoryPromptsRelationship = NSRelationshipDescription()
         categoryPromptsRelationship.name = "prompts"
         categoryPromptsRelationship.destinationEntity = promptEntity
         categoryPromptsRelationship.minCount = 0
         categoryPromptsRelationship.maxCount = 0 // 0 means "to many"
         categoryPromptsRelationship.deleteRule = .cascadeDeleteRule
+        categoryPromptsRelationship.isOptional = true
         
         let promptCategoryRelationship = NSRelationshipDescription()
         promptCategoryRelationship.name = "category"
@@ -119,6 +82,7 @@ class CoreDataStack: ObservableObject {
         promptCategoryRelationship.minCount = 0
         promptCategoryRelationship.maxCount = 1 // "to one"
         promptCategoryRelationship.deleteRule = .nullifyDeleteRule
+        promptCategoryRelationship.isOptional = true
         
         // Set inverse relationships
         categoryPromptsRelationship.inverseRelationship = promptCategoryRelationship
@@ -131,8 +95,47 @@ class CoreDataStack: ObservableObject {
         // Add entities to model
         model.entities = [categoryEntity, promptEntity]
         
-        return model
-    }
+        // Create container with our model
+        let container = NSPersistentCloudKitContainer(name: "PromptBind", managedObjectModel: model)
+        
+        // Configure for CloudKit
+        let storeDescription = container.persistentStoreDescriptions.first!
+        storeDescription.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+        storeDescription.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+        
+        // Set CloudKit container identifier
+        storeDescription.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+            containerIdentifier: "iCloud.samholstein.PromptBind"
+        )
+        
+        print("CoreDataStack: About to load persistent stores...")
+        
+        container.loadPersistentStores { [weak self] storeDescription, error in
+            if let error = error {
+                print("Core Data failed to load: \(error)")
+                print("Core Data error details: \(error.localizedDescription)")
+                if let nsError = error as NSError? {
+                    print("Core Data error domain: \(nsError.domain)")
+                    print("Core Data error code: \(nsError.code)")
+                    print("Core Data error userInfo: \(nsError.userInfo)")
+                }
+                self?.cloudKitError = "Core Data initialization failed: \(error.localizedDescription)"
+                self?.isCloudKitReady = false
+            } else {
+                print("Core Data loaded successfully!")
+                self?.isCloudKitReady = true
+                self?.cloudKitError = nil
+                
+                // Enable automatic merging
+                container.viewContext.automaticallyMergesChangesFromParent = true
+                container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+                
+                print("Core Data setup complete")
+            }
+        }
+        
+        return container
+    }()
     
     var viewContext: NSManagedObjectContext {
         return persistentContainer.viewContext
@@ -156,27 +159,20 @@ class CoreDataStack: ObservableObject {
             DispatchQueue.main.async {
                 switch status {
                 case .available:
-                    self?.isCloudKitReady = true
-                    self?.cloudKitError = nil
                     print("CloudKit account available")
                 case .noAccount:
-                    self?.isCloudKitReady = false
                     self?.cloudKitError = "Not signed into iCloud"
                     print("CloudKit: No iCloud account")
                 case .restricted:
-                    self?.isCloudKitReady = false
                     self?.cloudKitError = "iCloud account restricted"
                     print("CloudKit: Account restricted")
                 case .couldNotDetermine:
-                    self?.isCloudKitReady = false
                     self?.cloudKitError = "Could not determine iCloud status"
                     print("CloudKit: Could not determine status")
                 case .temporarilyUnavailable:
-                    self?.isCloudKitReady = false
                     self?.cloudKitError = "iCloud temporarily unavailable"
                     print("CloudKit: Temporarily unavailable")
                 @unknown default:
-                    self?.isCloudKitReady = false
                     self?.cloudKitError = "Unknown iCloud status"
                     print("CloudKit: Unknown status")
                 }

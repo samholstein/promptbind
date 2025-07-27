@@ -25,16 +25,16 @@ struct ContentView: View {
                     showingSettingsSheet = true
                 }) {
                     HStack {
-                        if coreDataStack.isCloudKitReady {
+                        if coreDataStack.isCloudKitReady && coreDataStack.cloudKitError == nil {
                             Image(systemName: "icloud")
                                 .foregroundColor(.blue)
                             Text("Synced with iCloud")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         } else {
-                            Image(systemName: "icloud.slash")
+                            Image(systemName: "exclamationmark.triangle")
                                 .foregroundColor(.orange)
-                            Text(coreDataStack.cloudKitError ?? "Not signed into iCloud")
+                            Text("A Core Data error occurred")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -46,10 +46,10 @@ struct ContentView: View {
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 4)
-                    .background(coreDataStack.isCloudKitReady ? Color.blue.opacity(0.1) : Color.orange.opacity(0.1))
+                    .background(Color.orange.opacity(0.1))
                 }
                 .buttonStyle(.plain)
-                .help("Click to open Settings")
+                .help("Click to open Settings - Error: \(coreDataStack.cloudKitError ?? "Unknown error")")
                 
                 Text("All Prompts")
                     .font(.headline)
@@ -108,40 +108,39 @@ struct ContentView: View {
     }
     
     private func addDefaultPrompts() {
-        // Create default category
-        let uncategorizedCategory = NSEntityDescription.insertNewObject(forEntityName: "Category", into: viewContext)
-        uncategorizedCategory.setValue("Uncategorized", forKey: "name")
-        uncategorizedCategory.setValue(Int16(0), forKey: "order")
-        uncategorizedCategory.setValue(UUID(), forKey: "id")
+        print("ContentView: Starting to add default prompts...")
         
-        let vibeCodingCategory = NSEntityDescription.insertNewObject(forEntityName: "Category", into: viewContext)
-        vibeCodingCategory.setValue("Vibe Coding", forKey: "name")
-        vibeCodingCategory.setValue(Int16(1), forKey: "order")
-        vibeCodingCategory.setValue(UUID(), forKey: "id")
-        
-        // Create default prompts
-        let defaultPrompts = [
-            ("agentrules", "You are a disciplined AI coding assistant embedded in my development environment. You are not an autonomous agent; you are a collaborator under supervision. Follow the rules below at all times unless explicitly told otherwise.\n\nCore Rules:\n\t1.\tNo Autonomous Implementation\nDo not implement new features, refactorings, or architectural changes without explicit user approval.\n\n\t2.\tFrequent Check-Ins\nAfter each major step, change, or discovery (including test outcomes or roadblocks), stop and report back to me. Await feedback before continuing.\n\n\t3.\tRespect Feature Intentions\nDo not \"solve\" bugs or obstacles by eliminating or working around the intended feature. Instead, report the issue to me and wait for clarification or a decision from me on how to proceed.\n\n\t4.\tDo Not Modify the Plan Midstream\nDo not revise your project plan or execution strategy based on speculative insights or comments unless the I explicitly approves a plan modification.\n\n\t5.\tPre-Implementation Review\nBefore implementing a new feature or fix, write up a short technical implementation specification and review it with me. Proceed only once I approve both the what and the how.\n\n\t6.\tTesting Is a Stop Point\nWhen a test confirms a feature or bug fix is complete, pause and notify me so I can verify and optionally commit the change to git. Do not continue unprompted.\n\n\t7.\tClarity Over Creativity\nYour job is not to anticipate what I might want. Your job is to ask when in doubt and document clearly. Err on the side of caution.", vibeCodingCategory),
-            ("itp ", "Go ahead and implement this plan.", vibeCodingCategory),
-            ("revproj", "Please review this project and report to me your understanding of the functionality of this project at a high level. Do not modify anything.", vibeCodingCategory),
-            ("tipp", "Please make a technical implementation plan with me and seek approval before proceeding. Do not include a timeline.", vibeCodingCategory)
-        ]
-        
-        for (trigger, expansion, category) in defaultPrompts {
-            let prompt = NSEntityDescription.insertNewObject(forEntityName: "Prompt", into: viewContext)
-            prompt.setValue(UUID(), forKey: "id")
-            prompt.setValue(trigger, forKey: "trigger")
-            prompt.setValue(expansion, forKey: "expansion")
-            prompt.setValue(true, forKey: "enabled")
-            prompt.setValue(category, forKey: "category")
-        }
-        
-        // Save to Core Data (and CloudKit automatically)
         do {
+            // Create default category
+            let uncategorizedCategory = NSEntityDescription.insertNewObject(forEntityName: "Category", into: viewContext)
+            uncategorizedCategory.setValue("Uncategorized", forKey: "name")
+            uncategorizedCategory.setValue(Int16(0), forKey: "order")
+            uncategorizedCategory.setValue(UUID(), forKey: "id")
+            
+            print("ContentView: Created Uncategorized category")
+            
+            // Create one simple test prompt
+            let testPrompt = NSEntityDescription.insertNewObject(forEntityName: "Prompt", into: viewContext)
+            testPrompt.setValue(UUID(), forKey: "id")
+            testPrompt.setValue("test", forKey: "trigger")
+            testPrompt.setValue("This is a test prompt", forKey: "expansion")
+            testPrompt.setValue(true, forKey: "enabled")
+            testPrompt.setValue(uncategorizedCategory, forKey: "category")
+            
+            print("ContentView: Created test prompt")
+            
+            // Save to Core Data (and CloudKit automatically)
             try viewContext.save()
-            print("ContentView: Default prompts saved successfully")
+            print("ContentView: Successfully saved default prompts to Core Data")
+            
         } catch {
             print("ContentView: Error saving default prompts: \(error)")
+            print("ContentView: Error details: \(error.localizedDescription)")
+            if let coreDataError = error as NSError? {
+                print("ContentView: Core Data error code: \(coreDataError.code)")
+                print("ContentView: Core Data error domain: \(coreDataError.domain)")
+                print("ContentView: Core Data error userInfo: \(coreDataError.userInfo)")
+            }
         }
     }
 }
