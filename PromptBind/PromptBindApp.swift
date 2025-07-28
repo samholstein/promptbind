@@ -1,24 +1,49 @@
 import SwiftUI
 import CoreData
-import AppKit // Required for AXIsProcessTrusted
+import AppKit
 
 @main
 struct PromptBindApp: App {
+    // AppDelegate for managing app lifecycle events, like activation policy.
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     @StateObject private var coreDataStack = CoreDataStack.shared
     @StateObject private var cloudKitService = CloudKitService()
-    @StateObject private var windowManager = WindowManager.shared
     @StateObject private var preferencesManager = PreferencesManager.shared
     
+    // Environment value to open new windows.
+    @Environment(\.openWindow) var openWindow
+
     @State private var showingAccessibilityPermissionSheet = false
     @State private var permissionCheckTimer: Timer?
-    @State private var statusBarManager: StatusBarManager?
-    @State private var isWindowVisible = true
     
-    // Keep trigger monitor at app level to ensure it persists
+    // Keep trigger monitor at app level to ensure it persists.
     @State private var triggerMonitor: TriggerMonitorService?
 
     var body: some Scene {
-        WindowGroup {
+        // MenuBarExtra is the primary scene for a menu bar app.
+        // It ensures the app stays running with a persistent status bar item.
+        MenuBarExtra("PromptBind", systemImage: "keyboard.fill") {
+            Button("Prompts") {
+                openWindow(id: "main")
+            }
+            .keyboardShortcut("o", modifiers: [.command, .shift])
+            
+            Button("Settings...") {
+                openWindow(id: "settings")
+            }
+            .keyboardShortcut(",", modifiers: .command)
+            
+            Divider()
+            
+            Button("Quit PromptBind") {
+                NSApplication.shared.terminate(nil)
+            }
+            .keyboardShortcut("q", modifiers: .command)
+        }
+        
+        // Main window for showing prompts. Not opened at launch.
+        WindowGroup(id: "main") {
             ContentView(
                 viewContext: coreDataStack.viewContext,
                 triggerMonitor: triggerMonitor,
@@ -27,71 +52,17 @@ struct PromptBindApp: App {
             .environment(\.managedObjectContext, coreDataStack.viewContext)
             .environmentObject(coreDataStack)
             .environmentObject(cloudKitService)
-            .environmentObject(windowManager)
             .environmentObject(preferencesManager)
             .sheet(isPresented: $showingAccessibilityPermissionSheet) {
                 AccessibilityPermissionView()
             }
-            .onAppear {
-                print("PromptBindApp: onAppear called")
-                
-                // Initialize trigger monitor if not already created
-                if triggerMonitor == nil {
-                    triggerMonitor = TriggerMonitorService(viewContext: coreDataStack.viewContext)
-                    print("PromptBindApp: Created TriggerMonitorService")
-                }
-                
-                // Check accessibility permission once
-                checkAccessibilityPermission()
-                
-                // Only start polling if permission is not granted
-                if !AXIsProcessTrusted() {
-                    // Start polling for permission status
-                    permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-                        checkAccessibilityPermission()
-                    }
-                } else {
-                    // Permission is already granted, start monitoring
-                    triggerMonitor?.startMonitoring()
-                }
-                
-                // Set up window first
-                DispatchQueue.main.async {
-                    NSApplication.shared.setActivationPolicy(.regular)
-                    NSApplication.shared.activate(ignoringOtherApps: true)
-                }
-                
-                // Create status bar AFTER app is fully initialized
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    print("PromptBindApp: Creating StatusBarManager after delay")
-                    if statusBarManager == nil {
-                        statusBarManager = StatusBarManager()
-                        print("PromptBindApp: StatusBarManager created: \(statusBarManager != nil)")
-                        setupStatusBarCallbacks()
-                    }
-                }
-            }
-            .onDisappear {
-                print("PromptBindApp: onDisappear called")
-                permissionCheckTimer?.invalidate()
-                permissionCheckTimer = nil
-                
-                // Update status bar state
-                statusBarManager?.isWindowVisible = false
-                updateAppActivationPolicy(windowVisible: false)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .windowWillHide)) { _ in
-                hideWindow()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
-                windowManager.openSettingsWindow()
-            }
+            .onAppear(perform: setupApp) // Setup when window appears
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 600)
         
-        // Dedicated Settings Window
-        WindowGroup("Settings") {
+        // Dedicated Settings Window. Not opened at launch.
+        WindowGroup(id: "settings") {
             SettingsView()
                 .environmentObject(cloudKitService)
                 .environmentObject(coreDataStack)
@@ -100,15 +71,8 @@ struct PromptBindApp: App {
         .windowResizability(.contentSize)
         .windowToolbarStyle(.unified)
         .defaultSize(width: 500, height: 400)
-        
         .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button("Settings...") {
-                    windowManager.openSettingsWindow()
-                }
-                .keyboardShortcut(",", modifiers: [.command])
-            }
-            
+            // These commands are available when one of the windows is focused.
             CommandGroup(after: .importExport) {
                 Button("Export Data...") {
                     NotificationCenter.default.post(name: .exportData, object: nil)
@@ -123,66 +87,27 @@ struct PromptBindApp: App {
         }
     }
     
-    private func setupStatusBarCallbacks() {
-        print("PromptBindApp: Setting up status bar callbacks...")
-        statusBarManager?.onShowWindow = {
-            print("PromptBindApp: Status bar show window callback")
-            self.showWindow()
+    // Moved setup logic into a single function.
+    private func setupApp() {
+        print("PromptBindApp: setupApp called")
+        
+        // Initialize trigger monitor if not already created.
+        // This ensures it's created only once.
+        if triggerMonitor == nil {
+            triggerMonitor = TriggerMonitorService(viewContext: coreDataStack.viewContext)
+            print("PromptBindApp: Created TriggerMonitorService")
         }
         
-        statusBarManager?.onHideWindow = {
-            print("PromptBindApp: Status bar hide window callback")
-            self.hideWindow()
-        }
-        
-        statusBarManager?.onQuitApp = {
-            print("PromptBindApp: Status bar quit app callback")
-            NSApplication.shared.terminate(nil)
-        }
-    }
-    
-    private func showWindow() {
-        print("PromptBindApp: Show window called")
-        // Set activation policy to regular first
-        updateAppActivationPolicy(windowVisible: true)
-        
-        // Activate the app and show the window
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        
-        // Find and show the main window
-        if let window = NSApplication.shared.windows.first {
-            window.makeKeyAndOrderFront(nil)
-            print("PromptBindApp: Window made key and front")
-        } else {
-            print("PromptBindApp: ERROR - No window found")
-        }
-        
-        statusBarManager?.isWindowVisible = true
-    }
-    
-    private func hideWindow() {
-        print("PromptBindApp: Hide window called")
-        // Hide main windows but keep settings window
-        NSApplication.shared.windows.forEach { window in
-            if window.title != "Settings" && window.contentViewController is NSHostingController<ContentView> {
-                window.orderOut(nil)
+        // Check accessibility permission and start monitoring if needed.
+        checkAccessibilityPermission()
+        if !AXIsProcessTrusted() {
+            // Start polling for permission status.
+            permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+                checkAccessibilityPermission()
             }
-        }
-        
-        statusBarManager?.isWindowVisible = false
-        updateAppActivationPolicy(windowVisible: false)
-    }
-    
-    private func updateAppActivationPolicy(windowVisible: Bool) {
-        print("PromptBindApp: Updating activation policy - windowVisible: \(windowVisible)")
-        if windowVisible {
-            // Show in dock and command-tab when window is visible
-            NSApplication.shared.setActivationPolicy(.regular)
-            print("PromptBindApp: Set activation policy to regular")
         } else {
-            // Hide from dock and command-tab when window is hidden
-            NSApplication.shared.setActivationPolicy(.accessory)
-            print("PromptBindApp: Set activation policy to accessory")
+            // Permission is already granted, start monitoring.
+            triggerMonitor?.startMonitoring()
         }
     }
 
@@ -196,7 +121,6 @@ struct PromptBindApp: App {
         } else if isTrusted && showingAccessibilityPermissionSheet {
             print("PromptBindApp: Permission granted, hiding sheet")
             showingAccessibilityPermissionSheet = false
-            // Stop polling and start monitoring
             permissionCheckTimer?.invalidate()
             permissionCheckTimer = nil
             triggerMonitor?.startMonitoring()
@@ -207,6 +131,5 @@ struct PromptBindApp: App {
 extension Notification.Name {
     static let exportData = Notification.Name("exportData")
     static let importData = Notification.Name("importData")
-    static let windowWillHide = Notification.Name("windowWillHide")
     static let showSettings = Notification.Name("showSettings")
 }
