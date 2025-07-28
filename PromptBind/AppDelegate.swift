@@ -2,40 +2,52 @@ import SwiftUI
 import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private var windowStatusDebouncer: Timer?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Set initial activation policy
-        updateActivationPolicy()
+        // With LSUIElement=true, we start as accessory by default
+        // No need to set initial policy
+        print("AppDelegate: App launched as UI Element (menu bar only)")
         
-        // Listen for window open/close notifications
-        NotificationCenter.default.addObserver(self, selector: #selector(windowVisibilityChanged), name: NSWindow.didBecomeKeyNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(windowVisibilityChanged), name: NSWindow.willCloseNotification, object: nil)
+        // Listen for window lifecycle notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidBecomeKey),
+            name: NSWindow.didBecomeKeyNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowWillClose),
+            name: NSWindow.willCloseNotification,
+            object: nil
+        )
     }
     
-    @objc private func windowVisibilityChanged() {
-        // Debounce to handle rapid open/close events (e.g., window tabbing)
-        windowStatusDebouncer?.invalidate()
-        windowStatusDebouncer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
-            self?.updateActivationPolicy()
-        }
-    }
-    
-    private func hasVisibleWindows() -> Bool {
-        // Check if there are any visible windows, excluding the status bar item itself
-        return NSApplication.shared.windows.contains { $0.isVisible && $0.canBecomeMain }
-    }
-    
-    private func updateActivationPolicy() {
-        if hasVisibleWindows() {
-            print("AppDelegate: Windows are visible, setting policy to .regular")
+    @objc private func windowDidBecomeKey(_ notification: Notification) {
+        // When a window becomes key, show in dock
+        if NSApp.activationPolicy() != .regular {
+            print("AppDelegate: Window opened, showing in dock")
             NSApp.setActivationPolicy(.regular)
-        } else {
-            print("AppDelegate: No visible windows, setting policy to .accessory")
-            NSApp.setActivationPolicy(.accessory)
-            // When we hide the last window, we need to manually activate another app
-            // so our app's menu bar disappears.
-            NSWorkspace.shared.runningApplications.first { $0 != NSRunningApplication.current && $0.isActive }?.activate()
+            NSApp.activate(ignoringOtherApps: true)
         }
+    }
+    
+    @objc private func windowWillClose(_ notification: Notification) {
+        // Small delay to check if any other windows remain open
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            let hasVisibleWindows = NSApp.windows.contains { window in
+                window.isVisible && window.canBecomeMain
+            }
+            
+            if !hasVisibleWindows && NSApp.activationPolicy() != .accessory {
+                print("AppDelegate: All windows closed, hiding from dock")
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }
