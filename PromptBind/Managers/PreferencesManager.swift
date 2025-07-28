@@ -10,11 +10,18 @@ class PreferencesManager: ObservableObject {
         }
     }
     
+    @Published var hasCompletedOnboarding: Bool {
+        didSet {
+            UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
+        }
+    }
+    
     private let launchAtStartupKey = "launchAtStartup"
     
     private init() {
         // Default to true (launch at startup enabled by default)
         self.launchAtStartup = UserDefaults.standard.object(forKey: launchAtStartupKey) as? Bool ?? true
+        self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         
         // Set initial state if this is first launch
         if UserDefaults.standard.object(forKey: launchAtStartupKey) == nil {

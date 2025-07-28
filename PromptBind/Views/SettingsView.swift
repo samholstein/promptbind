@@ -42,40 +42,15 @@ struct SettingsView: View {
                         .font(.caption)
                     }
                     
-                    HStack {
-                        Image(systemName: coreDataStack.isCloudKitReady ? "icloud" : "icloud.slash")
-                            .foregroundColor(coreDataStack.isCloudKitReady ? .blue : .orange)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Status: \(cloudKitService.accountStatus.description)")
-                                .font(.body)
-                            
-                            if coreDataStack.isCloudKitReady {
-                                Text("Your prompts will sync across all your devices")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text(coreDataStack.cloudKitError ?? "Sign into iCloud in System Preferences to enable sync")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                    // New detailed status view
+                    iCloudSyncStatusView(
+                        status: coreDataStack.syncStatus,
+                        lastSyncDate: coreDataStack.lastSyncDate,
+                        lastSyncError: coreDataStack.lastSyncError,
+                        onSyncNow: {
+                            coreDataStack.triggerCloudKitSync()
                         }
-                        
-                        Spacer()
-                        
-                        if !coreDataStack.isCloudKitReady {
-                            Button("Open System Preferences") {
-                                openSystemPreferences()
-                            }
-                            .controlSize(.small)
-                        } else {
-                            Button("Refresh Status") {
-                                cloudKitService.checkAccountStatus()
-                                coreDataStack.checkCloudKitStatus()
-                            }
-                            .controlSize(.small)
-                        }
-                    }
+                    )
                 }
                 .padding()
             }
@@ -174,9 +149,11 @@ struct SettingsView: View {
                 try await performDataClear()
                 
                 await MainActor.run {
-                    isClearingData = false
-                    // Close settings window after successful clear
-                    NSApplication.shared.windows.first { $0.title == "Settings" }?.close()
+                    // Reset the onboarding flag to ensure the welcome sequence shows on next launch.
+                    preferencesManager.hasCompletedOnboarding = false
+                    
+                    // Quit the app to complete the reset process.
+                    NSApplication.shared.terminate(nil)
                 }
             } catch {
                 await MainActor.run {
@@ -211,12 +188,6 @@ struct SettingsView: View {
         try context.save()
         
         print("Successfully cleared all account data")
-        
-        // Wait a moment for the deletions to process, then reload defaults
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        
-        // Reload default prompts
-        await reloadDefaultPrompts()
     }
     
     private func reloadDefaultPrompts() async {
@@ -281,6 +252,77 @@ Now, please thoroughly review the provided codebase. After your review, summariz
             print("SettingsView: Created specific default prompt after data clear")
         } catch {
             print("SettingsView: Error creating specific default: \(error)")
+        }
+    }
+}
+
+// MARK: - iCloud Sync Status Subview
+struct iCloudSyncStatusView: View {
+    let status: CloudKitSyncStatus
+    let lastSyncDate: Date?
+    let lastSyncError: String?
+    let onSyncNow: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                // Status Icon
+                switch status {
+                case .notSyncing:
+                    Image(systemName: "icloud")
+                        .foregroundColor(.secondary)
+                case .syncing:
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .frame(width: 16, height: 16)
+                case .synced:
+                    Image(systemName: "icloud.fill")
+                        .foregroundColor(.blue)
+                case .error:
+                    Image(systemName: "icloud.slash.fill")
+                        .foregroundColor(.red)
+                }
+                
+                // Status Text
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(status.rawValue)
+                        .font(.body)
+                    
+                    if let lastSyncDate = lastSyncDate, status != .syncing {
+                        Text("Last sync: \(lastSyncDate.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else if status == .syncing {
+                        Text("Checking for updates...")
+                             .font(.caption)
+                             .foregroundColor(.secondary)
+                    } else {
+                        Text("Changes will sync automatically")
+                             .font(.caption)
+                             .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                Button("Sync Now") {
+                    onSyncNow()
+                }
+                .controlSize(.small)
+                .disabled(status == .syncing)
+            }
+            
+            if status == .error, let error = lastSyncError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                        .font(.caption)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .lineLimit(2)
+                }
+            }
         }
     }
 }

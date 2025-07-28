@@ -1,12 +1,21 @@
 import Foundation
 import CoreData
 import CloudKit
+import Combine
 
 class CoreDataStack: ObservableObject {
     static let shared = CoreDataStack()
     
     @Published var isCloudKitReady = false
     @Published var cloudKitError: String?
+    
+    // New properties for detailed sync status
+    @Published var syncStatus: CloudKitSyncStatus = .notSyncing
+    @Published var lastSyncDate: Date?
+    @Published var lastSyncError: String?
+    
+    private var syncTimeoutTimer: Timer?
+    private var cancellables = Set<AnyCancellable>()
     
     lazy var persistentContainer: NSPersistentContainer = {
         let model = NSManagedObjectModel()
@@ -99,7 +108,9 @@ class CoreDataStack: ObservableObject {
         let container = NSPersistentCloudKitContainer(name: "PromptBind", managedObjectModel: model)
         
         // Configure for CloudKit
-        let storeDescription = container.persistentStoreDescriptions.first!
+        guard let storeDescription = container.persistentStoreDescriptions.first else {
+            fatalError("Failed to get persistent store description")
+        }
         storeDescription.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
         storeDescription.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
         
@@ -131,6 +142,9 @@ class CoreDataStack: ObservableObject {
                 container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
                 
                 print("Core Data setup complete")
+                
+                // Start monitoring CloudKit events
+                self?.monitorCloudKitEvents()
             }
         }
         
@@ -152,6 +166,94 @@ class CoreDataStack: ObservableObject {
                 print("Core Data save error: \(error.localizedDescription)")
             }
         }
+    }
+    
+    // Function to manually trigger a sync, if needed.
+    func triggerCloudKitSync() {
+        // This is a bit of a hack, as there's no direct "sync now" button.
+        // We can request a refresh of the schema to encourage a sync.
+        print("CoreDataStack: Manually triggering sync...")
+        syncTimeoutTimer?.invalidate() // Invalidate any existing timer.
+        
+        self.syncStatus = .syncing
+        self.lastSyncError = nil
+        
+        // Poke the container to encourage a sync.
+        let container = self.persistentContainer as! NSPersistentCloudKitContainer
+        do {
+            try container.initializeCloudKitSchema()
+        } catch {
+            print("CoreDataStack: Error trying to poke container for sync: \(error)")
+            // Don't treat this as a sync error, just log it.
+        }
+        
+        // Set a timeout to revert the syncing status if no event is received.
+        syncTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            
+            if self.syncStatus == .syncing {
+                print("CoreDataStack: Sync timeout reached. No event received, resetting status.")
+                self.syncStatus = .synced // Assume it's fine if we didn't get an error.
+            }
+        }
+    }
+    
+    private func monitorCloudKitEvents() {
+        print("CoreDataStack: Subscribing to CloudKit event notifications...")
+        NotificationCenter.default.publisher(for: NSPersistentCloudKitContainer.eventChangedNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self = self,
+                      let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey] as? NSPersistentCloudKitContainer.Event else {
+                    return
+                }
+                
+                print("CoreDataStack: Received CloudKit event: \(event.type)")
+                
+                switch event.type {
+                case .setup:
+                    print("CoreDataStack: Setup event finished.")
+                    self.syncStatus = .notSyncing
+                    self.syncTimeoutTimer?.invalidate()
+                case .import:
+                    if event.endDate != nil {
+                        print("CoreDataStack: Import finished.")
+                        self.syncTimeoutTimer?.invalidate() // A sync completed, cancel the timeout.
+                        self.lastSyncDate = Date()
+                        self.syncStatus = .synced
+                        if let error = event.error {
+                            self.lastSyncError = error.localizedDescription
+                            self.syncStatus = .error
+                            print("CoreDataStack: Import error: \(error.localizedDescription)")
+                        } else {
+                            self.lastSyncError = nil
+                        }
+                    } else {
+                        print("CoreDataStack: Import started...")
+                        self.syncStatus = .syncing
+                    }
+                case .export:
+                    if event.endDate != nil {
+                        print("CoreDataStack: Export finished.")
+                        self.syncTimeoutTimer?.invalidate() // A sync completed, cancel the timeout.
+                        self.lastSyncDate = Date()
+                        self.syncStatus = .synced
+                        if let error = event.error {
+                            self.lastSyncError = error.localizedDescription
+                            self.syncStatus = .error
+                            print("CoreDataStack: Export error: \(error.localizedDescription)")
+                        } else {
+                            self.lastSyncError = nil
+                        }
+                    } else {
+                        print("CoreDataStack: Export started...")
+                        self.syncStatus = .syncing
+                    }
+                @unknown default:
+                    break
+                }
+            }
+            .store(in: &cancellables)
     }
     
     func checkCloudKitStatus() {
@@ -181,6 +283,14 @@ class CoreDataStack: ObservableObject {
     }
     
     private init() {
-        checkCloudKitStatus()
+        // We call checkCloudKitStatus from the persistentContainer setup now
     }
+}
+
+// Enum to represent the detailed sync status
+enum CloudKitSyncStatus: String {
+    case notSyncing = "Not Syncing"
+    case syncing = "Syncing..."
+    case synced = "Up to Date"
+    case error = "Sync Error"
 }
