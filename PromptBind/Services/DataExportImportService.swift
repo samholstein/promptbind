@@ -164,7 +164,7 @@ class DataExportImportService: ObservableObject {
     
     // MARK: - Default Prompts
     
-    func loadDefaultPrompts() async throws {
+    func loadDefaultPrompts() async throws -> ExportData {
         print("DataExportImportService: Looking for DefaultPrompts.json in bundle...")
         
         guard let url = Bundle.main.url(forResource: "DefaultPrompts", withExtension: "json") else {
@@ -180,7 +180,7 @@ class DataExportImportService: ObservableObject {
         let importData = try JSONDecoder().decode(ExportData.self, from: jsonData)
         print("DataExportImportService: Decoded \(importData.prompts.count) prompts from JSON")
         
-        try await processDefaultImportData(importData)
+        return importData
     }
     
     private func processDefaultImportData(_ importData: ExportData) async throws {

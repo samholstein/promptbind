@@ -14,29 +14,27 @@ struct OnboardingView: View {
             
             // Replaced TabView with a custom paging view for macOS compatibility.
             // The .id() modifier helps SwiftUI know which view to transition from/to.
-            VStack {
-                switch selectedTab {
-                case 0:
-                    OnboardingPageView(
-                        imageName: "keyboard.fill",
-                        title: "Supercharge Your Typing",
-                        description: "PromptBind is a powerful text-expansion app. Type a short trigger, and it will be replaced with your custom text automatically."
-                    )
-                case 1:
-                    OnboardingPageView(
-                        imageName: "plus.circle.fill",
-                        title: "Create Your First Prompt",
-                        description: "Click the '+' button in the main window to create a new prompt. Define a trigger (like 'eml') and the text you want it to expand to (like 'example@email.com')."
-                    )
-                case 2:
-                    OnboardingPageView(
-                        imageName: "lock.shield.fill",
-                        title: "Accessibility Permission",
-                        description: "To monitor your typing system-wide, PromptBind needs Accessibility permissions. We will ask for this permission after you close this welcome screen."
-                    )
-                default:
-                    EmptyView()
-                }
+            TabView(selection: $selectedTab) {
+                OnboardingPageView(
+                    imageName: "keyboard.fill",
+                    title: "Supercharge Your Typing",
+                    description: "PromptBind is a powerful text-expansion app. Type a short trigger, and it will be replaced with your custom text automatically."
+                )
+                .tag(0)
+                
+                OnboardingPageView(
+                    imageName: "wand.and.stars",
+                    title: "Try The Default Prompt",
+                    description: "We've included a default prompt to get you started. Open any text editor and type 'firstprompt' to see it in action!"
+                )
+                .tag(1)
+
+                OnboardingPageView(
+                    imageName: "lock.shield.fill",
+                    title: "Accessibility Permission",
+                    description: "To monitor your typing system-wide, PromptBind needs Accessibility permissions. We will ask for this permission after you close this welcome screen."
+                )
+                .tag(2)
             }
             .id(selectedTab)
             .transition(.opacity.animation(.easeInOut))

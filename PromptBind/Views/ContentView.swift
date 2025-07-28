@@ -263,11 +263,47 @@ struct ContentView: View {
     }
     
     private func handleDefaultPrompts() async {
+        // This check is safe to do in the background
         let hasDefaults = await cloudKitService.hasAddedDefaultPrompts(context: viewContext)
+        
         if !hasDefaults {
             print("ContentView: Adding default prompts...")
             do {
-                try await importExportService.loadDefaultPrompts()
+                // Loading the file data is also safe for the background
+                let importData = try await importExportService.loadDefaultPrompts()
+                
+                // *** CRITICAL FIX ***
+                // Switch to the main actor to modify the Core Data context
+                await MainActor.run {
+                    do {
+                        // This block now runs safely on the main thread.
+                        var categoryMapping: [String: NSManagedObject] = [:]
+                        for exportCategory in importData.categories {
+                            let category = viewContext.createCategory(
+                                name: exportCategory.name,
+                                order: Int16(exportCategory.order)
+                            )
+                            categoryMapping[exportCategory.id] = category
+                        }
+                        
+                        for exportPrompt in importData.prompts {
+                            let category = exportPrompt.categoryId.flatMap { categoryMapping[$0] }
+                            _ = viewContext.createPrompt(
+                                trigger: exportPrompt.trigger,
+                                expansion: exportPrompt.prompt,
+                                enabled: exportPrompt.enabled,
+                                category: category
+                            )
+                        }
+                        
+                        // Save directly on the view context to ensure UI updates
+                        try viewContext.save()
+                        print("ContentView: Successfully saved default prompts to the main context.")
+                        
+                    } catch {
+                        print("ContentView: Error saving default prompts to context: \(error)")
+                    }
+                }
             } catch {
                 print("ContentView: Error loading default prompts from JSON: \(error)")
             }
