@@ -44,6 +44,7 @@ struct ContentView: View {
     let viewContext: NSManagedObjectContext
     @EnvironmentObject private var coreDataStack: CoreDataStack
     @EnvironmentObject private var cloudKitService: CloudKitService
+    @EnvironmentObject private var preferencesManager: PreferencesManager
     @Environment(\.openWindow) private var openWindow
     var triggerMonitor: TriggerMonitorService?
 
@@ -51,6 +52,8 @@ struct ContentView: View {
     @State private var showingAddPrompt = false
     @State private var showingAddCategory = false
     @State private var editingCategory: NSManagedObject?
+    @State private var showingOnboarding = false
+    @State private var isLoadingPrompts = false // Explicit state for loading
     
     @StateObject private var importExportService: DataExportImportService
     
@@ -90,20 +93,35 @@ struct ContentView: View {
                 )
             }
             .sheet(isPresented: $showingAddCategory) {
-                AddCategorySheet(
+                // Use the new, unified CategorySheet for adding.
+                CategorySheet(
                     viewContext: viewContext,
+                    category: nil,
                     existingCategories: Array(categories)
                 )
             }
-            .background(
-                ManagedObjectSheetBinding(item: $editingCategory) { category in
-                    EditCategorySheet(
-                        viewContext: viewContext,
-                        category: category,
-                        existingCategories: Array(categories)
-                    )
+            .sheet(item: $editingCategory) { category in
+                // Use the new, unified CategorySheet for editing.
+                CategorySheet(
+                    viewContext: viewContext,
+                    category: category,
+                    existingCategories: Array(categories)
+                )
+            }
+            .sheet(isPresented: $showingOnboarding) {
+                OnboardingView {
+                    // This completion block is called when the user finishes onboarding.
+                    preferencesManager.hasCompletedOnboarding = true
+                    showingOnboarding = false
+                    
+                    // NOW is the correct time to load the default prompts.
+                    Task {
+                        isLoadingPrompts = true
+                        await handleDefaultPrompts()
+                        isLoadingPrompts = false
+                    }
                 }
-            )
+            }
             .alert("Import/Export Status", isPresented: .constant(importExportService.lastError != nil || importExportService.successMessage != nil)) {
                 Button("OK") {
                     importExportService.lastError = nil
@@ -199,7 +217,7 @@ struct ContentView: View {
             AllPromptsView(
                 viewContext: viewContext,
                 categories: Array(categories),
-                isLoading: categories.isEmpty && allPrompts.isEmpty
+                isLoading: isLoadingPrompts || (categories.isEmpty && allPrompts.isEmpty && !preferencesManager.hasCompletedOnboarding)
             )
         case .category(let categoryID):
             if let category = categories.first(where: { $0.objectID == categoryID }) {
@@ -207,7 +225,7 @@ struct ContentView: View {
                     category: category,
                     viewContext: viewContext,
                     categories: Array(categories),
-                    isLoading: false
+                    isLoading: isLoadingPrompts
                 )
             } else {
                 CategoryNotFoundView(onSelectAllPrompts: { selectedItem = .allPrompts })
@@ -226,10 +244,12 @@ struct ContentView: View {
     // MARK: - Logic & Handlers
     
     private func setupView() {
-        restoreSelectedItem()
-        Task {
-            await handleDefaultPrompts()
+        if !preferencesManager.hasCompletedOnboarding {
+            // Trigger the sheet to appear.
+            showingOnboarding = true
         }
+        
+        restoreSelectedItem()
     }
     
     private func handleSelectionChange(from oldValue: SidebarSelection, to newValue: SidebarSelection) {

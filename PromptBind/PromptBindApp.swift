@@ -24,22 +24,27 @@ struct PromptBindApp: App {
         // MenuBarExtra is the primary scene for a menu bar app.
         // It ensures the app stays running with a persistent status bar item.
         MenuBarExtra("PromptBind", systemImage: "keyboard.fill") {
-            Button("Prompts") {
-                openWindow(id: "main")
+            // By wrapping the content in a VStack and attaching onAppear,
+            // we can run code once the app's UI is initialized.
+            VStack {
+                Button("Prompts") {
+                    openWindow(id: "main")
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+                
+                Button("Settings...") {
+                    openWindow(id: "settings")
+                }
+                .keyboardShortcut(",", modifiers: .command)
+                
+                Divider()
+                
+                Button("Quit PromptBind") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .keyboardShortcut("q", modifiers: .command)
             }
-            .keyboardShortcut("o", modifiers: [.command, .shift])
-            
-            Button("Settings...") {
-                openWindow(id: "settings")
-            }
-            .keyboardShortcut(",", modifiers: .command)
-            
-            Divider()
-            
-            Button("Quit PromptBind") {
-                NSApplication.shared.terminate(nil)
-            }
-            .keyboardShortcut("q", modifiers: .command)
+            .onAppear(perform: onAppLaunch)
         }
         
         // Main window for showing prompts. Not opened at launch.
@@ -84,6 +89,14 @@ struct PromptBindApp: App {
                 }
                 .keyboardShortcut("i", modifiers: [.command])
             }
+        }
+    }
+    
+    private func onAppLaunch() {
+        // This runs once when the MenuBarExtra content is first drawn.
+        if !preferencesManager.hasCompletedOnboarding {
+            print("PromptBindApp: First launch detected, opening main window.")
+            openWindow(id: "main")
         }
     }
     
