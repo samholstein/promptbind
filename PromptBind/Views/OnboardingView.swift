@@ -24,8 +24,8 @@ struct OnboardingView: View {
                 
                 OnboardingPageView(
                     imageName: "wand.and.stars",
-                    title: "Try The Default Prompt",
-                    description: "We've included a default prompt to get you started. Open any text editor and type 'firstprompt' to see it in action!"
+                    title: "Create Your First Prompt",
+                    description: "After setup, you'll create your first text expansion prompt. Think of something you type often - like your email signature or a common response."
                 )
                 .tag(1)
 

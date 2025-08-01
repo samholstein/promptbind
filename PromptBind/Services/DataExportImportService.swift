@@ -161,63 +161,6 @@ class DataExportImportService: ObservableObject {
         let prompts = try viewContext.fetch(request)
         return Set(prompts.map { $0.promptTrigger })
     }
-    
-    // MARK: - Default Prompts
-    
-    func loadDefaultPrompts() async throws -> ExportData {
-        print("DataExportImportService: Looking for DefaultPrompts.json in bundle...")
-        
-        guard let url = Bundle.main.url(forResource: "DefaultPrompts", withExtension: "json") else {
-            print("DataExportImportService: DefaultPrompts.json not found in bundle")
-            throw ImportExportError.fileNotFound
-        }
-        
-        print("DataExportImportService: Found DefaultPrompts.json at \(url.path)")
-        
-        let jsonData = try Data(contentsOf: url)
-        print("DataExportImportService: Loaded JSON data, size: \(jsonData.count) bytes")
-        
-        let importData = try JSONDecoder().decode(ExportData.self, from: jsonData)
-        print("DataExportImportService: Decoded \(importData.prompts.count) prompts from JSON")
-        
-        return importData
-    }
-    
-    private func processDefaultImportData(_ importData: ExportData) async throws {
-        print("DataExportImportService: Processing default import data...")
-        
-        // Don't check for duplicates when loading defaults - we want to load them fresh
-        
-        // Create category mapping
-        var categoryMapping: [String: NSManagedObject] = [:]
-        
-        // Import categories
-        for exportCategory in importData.categories {
-            print("DataExportImportService: Creating category: \(exportCategory.name)")
-            let category = viewContext.createCategory(
-                name: exportCategory.name,
-                order: Int16(exportCategory.order)
-            )
-            categoryMapping[exportCategory.id] = category
-        }
-        
-        // Import prompts
-        for exportPrompt in importData.prompts {
-            print("DataExportImportService: Creating prompt: \(exportPrompt.trigger)")
-            let category = exportPrompt.categoryId.flatMap { categoryMapping[$0] }
-            
-            _ = viewContext.createPrompt(
-                trigger: exportPrompt.trigger,
-                expansion: exportPrompt.prompt,
-                enabled: exportPrompt.enabled,
-                category: category
-            )
-        }
-        
-        // Save to Core Data
-        try viewContext.save()
-        print("DataExportImportService: Successfully saved \(importData.prompts.count) default prompts")
-    }
 }
 
 // MARK: - Date Formatter Extension

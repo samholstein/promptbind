@@ -4,7 +4,7 @@ import Sparkle
 struct SettingsView: View {
     @EnvironmentObject private var cloudKitService: CloudKitService
     @EnvironmentObject private var coreDataStack: CoreDataStack
-    @StateObject private var preferencesManager = PreferencesManager.shared
+    @EnvironmentObject private var preferencesManager: PreferencesManager
     
     @State private var showingCloudKitHelp = false
     @State private var showingClearDataWarning = false
@@ -12,9 +12,11 @@ struct SettingsView: View {
     @State private var isClearingData = false
     @State private var clearDataError: String?
     
-    // Access to Sparkle updater
-    private var updater: SPUUpdater {
-        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+    // Safer Sparkle updater access
+    private var updater: SPUUpdater? {
+        guard let appDelegate = NSApplication.shared.delegate as? AppDelegate else {
+            return nil
+        }
         return appDelegate.updater
     }
     
@@ -54,10 +56,11 @@ struct SettingsView: View {
                         Spacer()
                         
                         Toggle("", isOn: Binding(
-                            get: { updater.automaticallyChecksForUpdates },
-                            set: { updater.automaticallyChecksForUpdates = $0 }
+                            get: { updater?.automaticallyChecksForUpdates ?? true },
+                            set: { updater?.automaticallyChecksForUpdates = $0 }
                         ))
                         .toggleStyle(.switch)
+                        .disabled(updater == nil)
                     }
                     
                     HStack {
@@ -72,18 +75,20 @@ struct SettingsView: View {
                         Spacer()
                         
                         Toggle("", isOn: Binding(
-                            get: { updater.automaticallyDownloadsUpdates },
-                            set: { updater.automaticallyDownloadsUpdates = $0 }
+                            get: { updater?.automaticallyDownloadsUpdates ?? false },
+                            set: { updater?.automaticallyDownloadsUpdates = $0 }
                         ))
                         .toggleStyle(.switch)
+                        .disabled(updater == nil)
                     }
                     
                     HStack {
                         Spacer()
                         Button("Check for Updates Now") {
-                            updater.checkForUpdates()
+                            updater?.checkForUpdates()
                         }
                         .controlSize(.small)
+                        .disabled(updater == nil)
                     }
                 }
                 .padding()
@@ -195,11 +200,6 @@ struct SettingsView: View {
         }
     }
     
-    private func openSystemPreferences() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preferences.AppleIDPrefPane")!
-        NSWorkspace.shared.open(url)
-    }
-    
     private func clearAllData() {
         isClearingData = true
         clearDataError = nil
@@ -248,71 +248,6 @@ struct SettingsView: View {
         try context.save()
         
         print("Successfully cleared all account data")
-    }
-    
-    private func reloadDefaultPrompts() async {
-        print("SettingsView: Starting to reload default prompts...")
-        
-        do {
-            // Create and use the import service to load defaults
-            let importService = DataExportImportService(viewContext: coreDataStack.viewContext)
-            try await importService.loadDefaultPrompts()
-            print("SettingsView: Successfully reloaded default prompts after data clear")
-        } catch {
-            print("SettingsView: Error reloading default prompts: \(error)")
-            print("SettingsView: Error type: \(type(of: error))")
-            
-            // Check if the bundle contains the file
-            if let url = Bundle.main.url(forResource: "DefaultPrompts", withExtension: "json") {
-                print("SettingsView: DefaultPrompts.json found at: \(url.path)")
-                do {
-                    let data = try Data(contentsOf: url)
-                    print("SettingsView: File data loaded, size: \(data.count) bytes")
-                    let string = String(data: data, encoding: .utf8) ?? "Could not convert to string"
-                    print("SettingsView: File contents preview: \(string.prefix(200))...")
-                } catch {
-                    print("SettingsView: Error reading file: \(error)")
-                }
-            } else {
-                print("SettingsView: DefaultPrompts.json NOT found in bundle")
-                print("SettingsView: Bundle path: \(Bundle.main.bundlePath)")
-                print("SettingsView: Bundle resources: \(Bundle.main.paths(forResourcesOfType: "json", inDirectory: nil))")
-            }
-            
-            // If JSON loading fails, create the exact prompt as fallback
-            await createSpecificDefault()
-        }
-    }
-    
-    private func createSpecificDefault() async {
-        print("SettingsView: Creating specific default prompt...")
-        
-        do {
-            let context = coreDataStack.viewContext
-            let defaultCategory = context.createCategory(name: "Agentic Programming", order: 0)
-            let defaultPrompt = context.createPrompt(
-                trigger: "firstprompt",
-                expansion: """
-You are an AI coding agent collaborating closely with me to develop and enhance applications. Your role is to support the development process by adhering strictly to these guidelines:
-
-1. **Feature Implementation Approval:**
-
-   * You must seek explicit approval from me before implementing any new features, modifications, or developing workarounds and fallbacks for existing functionalities.
-
-2. **Testing Coordination:**
-
-   * Whenever the application reaches a state requiring testing or verification, stop immediately and prompt me clearly and explicitly. Do not proceed further until I have tested the app and confirmed the results.
-
-Now, please thoroughly review the provided codebase. After your review, summarize its overall functionality at a high level. Provide a concise but comprehensive description so we can confirm our shared understanding of the project's purpose and current state.
-""",
-                enabled: true,
-                category: defaultCategory
-            )
-            try context.save()
-            print("SettingsView: Created specific default prompt after data clear")
-        } catch {
-            print("SettingsView: Error creating specific default: \(error)")
-        }
     }
 }
 
@@ -392,5 +327,6 @@ struct SettingsView_Previews: PreviewProvider {
         SettingsView()
             .environmentObject(CloudKitService())
             .environmentObject(CoreDataStack.shared)
+            .environmentObject(PreferencesManager.shared)
     }
 }

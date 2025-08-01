@@ -51,25 +51,6 @@ class CloudKitService: ObservableObject {
             }
         }
     }
-    
-    func hasAddedDefaultPrompts(context: NSManagedObjectContext) async -> Bool {
-        print("CloudKitService: Checking if default prompts have been added...")
-        
-        // Check if we have any prompts in Core Data
-        let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
-        do {
-            let count = try context.count(for: request)
-            print("CloudKitService: Found \(count) existing prompts")
-            return count > 0
-        } catch {
-            print("CloudKitService: Error checking prompt count: \(error)")
-            return false
-        }
-    }
-    
-    func markDefaultPromptsAsAdded() async {
-        print("CloudKitService: Default prompts marked as added (handled by Core Data)")
-    }
 }
 
 extension CKAccountStatus {

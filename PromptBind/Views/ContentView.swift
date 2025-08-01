@@ -53,7 +53,6 @@ struct ContentView: View {
     @State private var showingAddCategory = false
     @State private var editingCategory: NSManagedObject?
     @State private var showingOnboarding = false
-    @State private var isLoadingPrompts = false // Explicit state for loading
     
     @StateObject private var importExportService: DataExportImportService
     
@@ -113,13 +112,6 @@ struct ContentView: View {
                     // This completion block is called when the user finishes onboarding.
                     preferencesManager.hasCompletedOnboarding = true
                     showingOnboarding = false
-                    
-                    // Load default prompts after onboarding completion
-                    Task {
-                        isLoadingPrompts = true
-                        await handleDefaultPrompts()
-                        isLoadingPrompts = false
-                    }
                 }
             }
             .alert("Import/Export Status", isPresented: .constant(importExportService.lastError != nil || importExportService.successMessage != nil)) {
@@ -216,16 +208,14 @@ struct ContentView: View {
         case .allPrompts:
             AllPromptsView(
                 viewContext: viewContext,
-                categories: Array(categories),
-                isLoading: isLoadingPrompts || (categories.isEmpty && allPrompts.isEmpty && !preferencesManager.hasCompletedOnboarding)
+                categories: Array(categories)
             )
         case .category(let categoryID):
             if let category = categories.first(where: { $0.objectID == categoryID }) {
                 PromptsListView(
                     category: category,
                     viewContext: viewContext,
-                    categories: Array(categories),
-                    isLoading: isLoadingPrompts
+                    categories: Array(categories)
                 )
             } else {
                 CategoryNotFoundView(onSelectAllPrompts: { selectedItem = .allPrompts })
@@ -244,16 +234,9 @@ struct ContentView: View {
     // MARK: - Logic & Handlers
     
     private func setupView() {
-        // Always check for onboarding, but don't tie it to window opening
+        // Check for onboarding
         if !preferencesManager.hasCompletedOnboarding {
             showingOnboarding = true
-        } else {
-            // If onboarding is complete, load default prompts if needed
-            Task {
-                isLoadingPrompts = true
-                await handleDefaultPrompts()
-                isLoadingPrompts = false
-            }
         }
         
         restoreSelectedItem()
@@ -267,54 +250,6 @@ struct ContentView: View {
     private func handleContextSave(_ notification: Notification) {
         triggerMonitor?.loadAllPrompts()
         validateCurrentSelection()
-    }
-    
-    private func handleDefaultPrompts() async {
-        // This check is safe to do in the background
-        let hasDefaults = await cloudKitService.hasAddedDefaultPrompts(context: viewContext)
-        
-        if !hasDefaults {
-            print("ContentView: Adding default prompts...")
-            do {
-                // Loading the file data is also safe for the background
-                let importData = try await importExportService.loadDefaultPrompts()
-                
-                // *** CRITICAL FIX ***
-                // Switch to the main actor to modify the Core Data context
-                await MainActor.run {
-                    do {
-                        // This block now runs safely on the main thread.
-                        var categoryMapping: [String: NSManagedObject] = [:]
-                        for exportCategory in importData.categories {
-                            let category = viewContext.createCategory(
-                                name: exportCategory.name,
-                                order: Int16(exportCategory.order)
-                            )
-                            categoryMapping[exportCategory.id] = category
-                        }
-                        
-                        for exportPrompt in importData.prompts {
-                            let category = exportPrompt.categoryId.flatMap { categoryMapping[$0] }
-                            _ = viewContext.createPrompt(
-                                trigger: exportPrompt.trigger,
-                                expansion: exportPrompt.prompt,
-                                enabled: exportPrompt.enabled,
-                                category: category
-                            )
-                        }
-                        
-                        // Save directly on the view context to ensure UI updates
-                        try viewContext.save()
-                        print("ContentView: Successfully saved default prompts to the main context.")
-                        
-                    } catch {
-                        print("ContentView: Error saving default prompts to context: \(error)")
-                    }
-                }
-            } catch {
-                print("ContentView: Error loading default prompts from JSON: \(error)")
-            }
-        }
     }
     
     private func saveSelectedItem(_ item: SidebarSelection) {
@@ -381,18 +316,16 @@ struct PromptsListView: View {
     let category: NSManagedObject
     let viewContext: NSManagedObjectContext
     let categories: [NSManagedObject]
-    let isLoading: Bool
     
     @State private var showingAddPrompt = false
     @State private var editingPrompt: NSManagedObject?
     
     @FetchRequest private var prompts: FetchedResults<NSManagedObject>
     
-    init(category: NSManagedObject, viewContext: NSManagedObjectContext, categories: [NSManagedObject], isLoading: Bool = false) {
+    init(category: NSManagedObject, viewContext: NSManagedObjectContext, categories: [NSManagedObject]) {
         self.category = category
         self.viewContext = viewContext
         self.categories = categories
-        self.isLoading = isLoading
         
         let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
         request.predicate = NSPredicate(format: "category == %@", category)
@@ -424,9 +357,7 @@ struct PromptsListView: View {
     
     @ViewBuilder
     private var content: some View {
-        if isLoading {
-            LoadingStateView(message: "Loading prompts...")
-        } else if prompts.isEmpty {
+        if prompts.isEmpty {
             EmptyStateView(
                 icon: "text.cursor",
                 title: "No prompts in this category",
@@ -446,17 +377,15 @@ struct PromptsListView: View {
 struct AllPromptsView: View {
     let viewContext: NSManagedObjectContext
     let categories: [NSManagedObject]
-    let isLoading: Bool
     
     @State private var showingAddPrompt = false
     @State private var editingPrompt: NSManagedObject?
     
     @FetchRequest private var allPrompts: FetchedResults<NSManagedObject>
     
-    init(viewContext: NSManagedObjectContext, categories: [NSManagedObject], isLoading: Bool = false) {
+    init(viewContext: NSManagedObjectContext, categories: [NSManagedObject]) {
         self.viewContext = viewContext
         self.categories = categories
-        self.isLoading = isLoading
         
         let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
         request.sortDescriptors = [NSSortDescriptor(key: "trigger", ascending: true)]
@@ -487,9 +416,7 @@ struct AllPromptsView: View {
     
     @ViewBuilder
     private var content: some View {
-        if isLoading {
-            LoadingStateView(message: "Loading prompts...")
-        } else if allPrompts.isEmpty {
+        if allPrompts.isEmpty {
             EmptyStateView(
                 icon: "text.cursor",
                 title: "No prompts yet",
@@ -592,18 +519,6 @@ struct CategoryNotFoundView: View {
                 Text("The selected category might have been deleted.").font(.subheadline).foregroundColor(.secondary).multilineTextAlignment(.center).padding(.horizontal)
             }
             Button("View All Prompts", action: onSelectAllPrompts).buttonStyle(.borderedProminent)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(.controlBackgroundColor).opacity(0.5))
-    }
-}
-
-struct LoadingStateView: View {
-    let message: String
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            ProgressView().progressViewStyle(CircularProgressViewStyle()).scaleEffect(1.2)
-            Text(message).font(.subheadline).foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(.controlBackgroundColor).opacity(0.5))
     }

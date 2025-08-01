@@ -76,7 +76,7 @@ struct PromptBindApp: App {
         }
         .windowResizability(.contentSize)
         .windowToolbarStyle(.unified)
-        .defaultSize(width: 500, height: 400)
+        .defaultSize(width: 600, height: 550)
         .commands {
             // These commands are available when one of the windows is focused.
             CommandGroup(after: .importExport) {
