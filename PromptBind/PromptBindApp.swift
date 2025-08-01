@@ -21,11 +21,28 @@ struct PromptBindApp: App {
     @State private var triggerMonitor: TriggerMonitorService?
 
     var body: some Scene {
-        // MenuBarExtra is the primary scene for a menu bar app.
-        // It ensures the app stays running with a persistent status bar item.
+        // Make the main window the primary scene - this should open automatically at launch
+        WindowGroup(id: "main") {
+            ContentView(
+                viewContext: coreDataStack.viewContext,
+                triggerMonitor: triggerMonitor,
+                cloudKitService: cloudKitService
+            )
+            .environment(\.managedObjectContext, coreDataStack.viewContext)
+            .environmentObject(coreDataStack)
+            .environmentObject(cloudKitService)
+            .environmentObject(preferencesManager)
+            .sheet(isPresented: $showingAccessibilityPermissionSheet) {
+                AccessibilityPermissionView()
+            }
+            .onAppear(perform: setupApp) // Setup when window appears
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 800, height: 600)
+        .defaultPosition(.center)
+        
+        // MenuBarExtra is now secondary - provides menu access
         MenuBarExtra("PromptBind", systemImage: "keyboard.fill") {
-            // By wrapping the content in a VStack and attaching onAppear,
-            // we can run code once the app's UI is initialized.
             VStack {
                 Button("Prompts") {
                     openWindow(id: "main")
@@ -44,27 +61,7 @@ struct PromptBindApp: App {
                 }
                 .keyboardShortcut("q", modifiers: .command)
             }
-            .onAppear(perform: onAppLaunch)
         }
-        
-        // Main window for showing prompts. Not opened at launch.
-        WindowGroup(id: "main") {
-            ContentView(
-                viewContext: coreDataStack.viewContext,
-                triggerMonitor: triggerMonitor,
-                cloudKitService: cloudKitService
-            )
-            .environment(\.managedObjectContext, coreDataStack.viewContext)
-            .environmentObject(coreDataStack)
-            .environmentObject(cloudKitService)
-            .environmentObject(preferencesManager)
-            .sheet(isPresented: $showingAccessibilityPermissionSheet) {
-                AccessibilityPermissionView()
-            }
-            .onAppear(perform: setupApp) // Setup when window appears
-        }
-        .windowResizability(.contentSize)
-        .defaultSize(width: 800, height: 600)
         
         // Dedicated Settings Window. Not opened at launch.
         WindowGroup(id: "settings") {
@@ -89,14 +86,6 @@ struct PromptBindApp: App {
                 }
                 .keyboardShortcut("i", modifiers: [.command])
             }
-        }
-    }
-    
-    private func onAppLaunch() {
-        // This runs once when the MenuBarExtra content is first drawn.
-        if !preferencesManager.hasCompletedOnboarding {
-            print("PromptBindApp: First launch detected, opening main window.")
-            openWindow(id: "main")
         }
     }
     
@@ -145,4 +134,5 @@ extension Notification.Name {
     static let exportData = Notification.Name("exportData")
     static let importData = Notification.Name("importData")
     static let showSettings = Notification.Name("showSettings")
+    static let openMainWindowAtLaunch = Notification.Name("openMainWindowAtLaunch")
 }

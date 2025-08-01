@@ -114,7 +114,7 @@ struct ContentView: View {
                     preferencesManager.hasCompletedOnboarding = true
                     showingOnboarding = false
                     
-                    // NOW is the correct time to load the default prompts.
+                    // Load default prompts after onboarding completion
                     Task {
                         isLoadingPrompts = true
                         await handleDefaultPrompts()
@@ -244,9 +244,16 @@ struct ContentView: View {
     // MARK: - Logic & Handlers
     
     private func setupView() {
+        // Always check for onboarding, but don't tie it to window opening
         if !preferencesManager.hasCompletedOnboarding {
-            // Trigger the sheet to appear.
             showingOnboarding = true
+        } else {
+            // If onboarding is complete, load default prompts if needed
+            Task {
+                isLoadingPrompts = true
+                await handleDefaultPrompts()
+                isLoadingPrompts = false
+            }
         }
         
         restoreSelectedItem()
