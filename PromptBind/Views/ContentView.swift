@@ -45,6 +45,7 @@ struct ContentView: View {
     @EnvironmentObject private var coreDataStack: CoreDataStack
     @EnvironmentObject private var cloudKitService: CloudKitService
     @EnvironmentObject private var preferencesManager: PreferencesManager
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @Environment(\.openWindow) private var openWindow
     var triggerMonitor: TriggerMonitorService?
 
@@ -53,6 +54,7 @@ struct ContentView: View {
     @State private var showingAddCategory = false
     @State private var editingCategory: NSManagedObject?
     @State private var showingOnboarding = false
+    @State private var showingUpgradePrompt = false
     
     @StateObject private var importExportService: DataExportImportService
     
@@ -81,9 +83,20 @@ struct ContentView: View {
         mainView
             .onAppear(perform: setupView)
             .onChange(of: selectedItem, handleSelectionChange)
+            .onChange(of: allPrompts.count) { oldCount, newCount in
+                print("ContentView: Prompt count changed from \(oldCount) to \(newCount)")
+                subscriptionManager.updatePromptCount(newCount)
+            }
             .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave), perform: handleContextSave)
             .onReceive(NotificationCenter.default.publisher(for: .exportData)) { _ in importExportService.exportData() }
-            .onReceive(NotificationCenter.default.publisher(for: .importData)) { _ in importExportService.importData() }
+            .onReceive(NotificationCenter.default.publisher(for: .importData)) { _ in 
+                // Check if user has Pro access for import
+                if subscriptionManager.hasProAccess() {
+                    importExportService.importData()
+                } else {
+                    showingUpgradePrompt = true
+                }
+            }
             .sheet(isPresented: $showingAddPrompt) {
                 PromptSheet(
                     viewContext: viewContext,
@@ -113,6 +126,9 @@ struct ContentView: View {
                     preferencesManager.hasCompletedOnboarding = true
                     showingOnboarding = false
                 }
+            }
+            .sheet(isPresented: $showingUpgradePrompt) {
+                UpgradePromptView()
             }
             .alert("Import/Export Status", isPresented: .constant(importExportService.lastError != nil || importExportService.successMessage != nil)) {
                 Button("OK") {
@@ -144,6 +160,13 @@ struct ContentView: View {
                     Label("Settings", systemImage: "gear")
                 }
                 .help("Settings")
+                
+                #if DEBUG
+                Button("Debug: Refresh Count") {
+                    subscriptionManager.refreshPromptCount()
+                }
+                .help("Refresh subscription count")
+                #endif
             }
         }
     }
@@ -179,6 +202,30 @@ struct ContentView: View {
                     .font(.subheadline).fontWeight(.semibold).foregroundColor(.secondary).textCase(.uppercase)
                     .padding(.horizontal, 8).padding(.top, 16).padding(.bottom, 4)
             }
+            
+            #if DEBUG
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Debug Info:")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                    Text("Status: \(subscriptionManager.subscriptionStatus.displayName)")
+                        .font(.caption)
+                    Text("Count: \(subscriptionManager.promptCount)")
+                        .font(.caption)
+                    Text("Can Create: \(subscriptionManager.canCreatePrompt() ? "Yes" : "No")")
+                        .font(.caption)
+                        .foregroundColor(subscriptionManager.canCreatePrompt() ? .green : .red)
+                }
+                .padding(8)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(8)
+            } header: {
+                Text("Subscription Debug")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            #endif
         }
         .listStyle(.sidebar)
         .navigationTitle("PromptBind")
@@ -240,6 +287,11 @@ struct ContentView: View {
         }
         
         restoreSelectedItem()
+        
+        // Ensure subscription manager has correct count after view appears
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            subscriptionManager.refreshPromptCount()
+        }
     }
     
     private func handleSelectionChange(from oldValue: SidebarSelection, to newValue: SidebarSelection) {
@@ -250,6 +302,11 @@ struct ContentView: View {
     private func handleContextSave(_ notification: Notification) {
         triggerMonitor?.loadAllPrompts()
         validateCurrentSelection()
+        
+        // Update subscription manager after Core Data saves
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            subscriptionManager.refreshPromptCount()
+        }
     }
     
     private func saveSelectedItem(_ item: SidebarSelection) {
@@ -317,8 +374,10 @@ struct PromptsListView: View {
     let viewContext: NSManagedObjectContext
     let categories: [NSManagedObject]
     
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @State private var showingAddPrompt = false
     @State private var editingPrompt: NSManagedObject?
+    @State private var showingUpgradePrompt = false
     
     @FetchRequest private var prompts: FetchedResults<NSManagedObject>
     
@@ -340,13 +399,22 @@ struct PromptsListView: View {
                 iconColor: .orange,
                 title: category.categoryName,
                 count: prompts.count,
-                onAddPrompt: { showingAddPrompt = true }
+                onAddPrompt: { 
+                    if subscriptionManager.canCreatePrompt() {
+                        showingAddPrompt = true
+                    } else {
+                        showingUpgradePrompt = true
+                    }
+                }
             )
             Divider()
             content
         }
         .sheet(isPresented: $showingAddPrompt) {
             PromptSheet(viewContext: viewContext, selectedCategory: category, categories: categories)
+        }
+        .sheet(isPresented: $showingUpgradePrompt) {
+            UpgradePromptView()
         }
         .background(
             ManagedObjectSheetBinding(item: $editingPrompt) { prompt in
@@ -362,8 +430,14 @@ struct PromptsListView: View {
                 icon: "text.cursor",
                 title: "No prompts in this category",
                 subtitle: "Add your first prompt to get started",
-                buttonTitle: "Add Prompt",
-                onButtonTap: { showingAddPrompt = true }
+                buttonTitle: subscriptionManager.canCreatePrompt() ? "Add Prompt" : "Upgrade to Add Prompts",
+                onButtonTap: { 
+                    if subscriptionManager.canCreatePrompt() {
+                        showingAddPrompt = true
+                    } else {
+                        showingUpgradePrompt = true
+                    }
+                }
             )
         } else {
             PromptsListContentView(prompts: Array(prompts)) { prompt in
@@ -378,8 +452,10 @@ struct AllPromptsView: View {
     let viewContext: NSManagedObjectContext
     let categories: [NSManagedObject]
     
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @State private var showingAddPrompt = false
     @State private var editingPrompt: NSManagedObject?
+    @State private var showingUpgradePrompt = false
     
     @FetchRequest private var allPrompts: FetchedResults<NSManagedObject>
     
@@ -399,13 +475,22 @@ struct AllPromptsView: View {
                 iconColor: .blue,
                 title: "All Prompts",
                 count: allPrompts.count,
-                onAddPrompt: { showingAddPrompt = true }
+                onAddPrompt: { 
+                    if subscriptionManager.canCreatePrompt() {
+                        showingAddPrompt = true
+                    } else {
+                        showingUpgradePrompt = true
+                    }
+                }
             )
             Divider()
             content
         }
         .sheet(isPresented: $showingAddPrompt) {
             PromptSheet(viewContext: viewContext, selectedCategory: nil, categories: categories)
+        }
+        .sheet(isPresented: $showingUpgradePrompt) {
+            UpgradePromptView()
         }
         .background(
             ManagedObjectSheetBinding(item: $editingPrompt) { prompt in
@@ -421,8 +506,14 @@ struct AllPromptsView: View {
                 icon: "text.cursor",
                 title: "No prompts yet",
                 subtitle: "Create your first prompt to get started",
-                buttonTitle: "Add Prompt",
-                onButtonTap: { showingAddPrompt = true }
+                buttonTitle: subscriptionManager.canCreatePrompt() ? "Add Prompt" : "Upgrade to Add Prompts",
+                onButtonTap: { 
+                    if subscriptionManager.canCreatePrompt() {
+                        showingAddPrompt = true
+                    } else {
+                        showingUpgradePrompt = true
+                    }
+                }
             )
         } else {
             AllPromptsListContentView(prompts: Array(allPrompts)) { prompt in

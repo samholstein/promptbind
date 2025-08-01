@@ -3,6 +3,7 @@ import CoreData
 
 struct PromptSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
     let viewContext: NSManagedObjectContext
     let prompt: NSManagedObject? // nil for add mode, existing prompt for edit mode
     let selectedCategory: NSManagedObject?
@@ -14,6 +15,7 @@ struct PromptSheet: View {
     @State private var selectedCategoryID: NSManagedObjectID?
     @State private var errorMessage: String?
     @State private var isSubmitting = false
+    @State private var showingUpgradePrompt = false
     @FocusState private var focusedField: Field?
     
     enum Field: Hashable {
@@ -69,6 +71,11 @@ struct PromptSheet: View {
             
             // Main content
             VStack(spacing: 24) {
+                // Free tier limit warning (only show in add mode for free users)
+                if !isEditMode && !subscriptionManager.canCreatePrompt() {
+                    freeTierLimitView
+                }
+                
                 // Bind field (trigger)
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -84,6 +91,7 @@ struct PromptSheet: View {
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .trigger)
                         .onSubmit { focusedField = .expansion }
+                        .disabled(!isEditMode && !subscriptionManager.canCreatePrompt())
                 }
                 
                 // Prompt field (expansion)
@@ -107,6 +115,7 @@ struct PromptSheet: View {
                                 .stroke(Color(.separatorColor), lineWidth: 1)
                         )
                         .font(.body)
+                        .disabled(!isEditMode && !subscriptionManager.canCreatePrompt())
                 }
                 
                 // Settings row
@@ -118,6 +127,7 @@ struct PromptSheet: View {
                         Toggle("", isOn: $enabled)
                             .toggleStyle(.switch)
                             .labelsHidden()
+                            .disabled(!isEditMode && !subscriptionManager.canCreatePrompt())
                     }
                     
                     HStack {
@@ -134,6 +144,7 @@ struct PromptSheet: View {
                         .pickerStyle(.menu)
                         .frame(minWidth: 200)
                         .labelsHidden()
+                        .disabled(!isEditMode && !subscriptionManager.canCreatePrompt())
                     }
                 }
                 
@@ -173,29 +184,81 @@ struct PromptSheet: View {
                 }
                 .keyboardShortcut(.escape)
                 
-                Button(action: savePrompt) {
-                    if isSubmitting {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                            Text("Saving...")
-                        }
-                    } else {
-                        Text(saveButtonTitle)
+                if !isEditMode && !subscriptionManager.canCreatePrompt() {
+                    Button("Upgrade to Pro") {
+                        showingUpgradePrompt = true
                     }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.return, modifiers: .command)
+                } else {
+                    Button(action: savePrompt) {
+                        if isSubmitting {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Saving...")
+                            }
+                        } else {
+                            Text(saveButtonTitle)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(trigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || 
+                             expansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                             isSubmitting)
+                    .keyboardShortcut(.return, modifiers: .command)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(trigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || 
-                         expansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                         isSubmitting)
-                .keyboardShortcut(.return, modifiers: .command)
             }
             .padding(20)
         }
         .frame(width: 450, height: 600)
         .onAppear {
-            focusedField = .trigger
+            if isEditMode || subscriptionManager.canCreatePrompt() {
+                focusedField = .trigger
+            }
         }
+        .sheet(isPresented: $showingUpgradePrompt) {
+            UpgradePromptView()
+        }
+    }
+    
+    // MARK: - Subscription UI
+    
+    private var freeTierLimitView: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "star.fill")
+                    .foregroundColor(.orange)
+                Text("Free Tier Limit Reached")
+                    .fontWeight(.semibold)
+                Spacer()
+            }
+            
+            Text("You've reached the 5-prompt limit for free accounts. Upgrade to Pro for unlimited prompts and advanced features.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.leading)
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Current: \(subscriptionManager.promptCount)/5 prompts")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Pro: Unlimited prompts")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                }
+                Spacer()
+            }
+        }
+        .padding(16)
+        .background(Color.orange.opacity(0.1))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        )
     }
     
     // MARK: - Actions
@@ -221,6 +284,12 @@ struct PromptSheet: View {
     }
     
     private func savePrompt() {
+        // In add mode, check subscription limits before saving
+        if !isEditMode && !subscriptionManager.canCreatePrompt() {
+            showingUpgradePrompt = true
+            return
+        }
+        
         errorMessage = nil
         isSubmitting = true
         
@@ -329,6 +398,7 @@ struct PromptSheet_Previews: PreviewProvider {
                 selectedCategory: category,
                 categories: [category]
             )
+            .environmentObject(SubscriptionManager.shared)
             .previewDisplayName("Add Mode")
             
             // Edit mode preview
@@ -337,6 +407,7 @@ struct PromptSheet_Previews: PreviewProvider {
                 prompt: prompt,
                 categories: [category]
             )
+            .environmentObject(SubscriptionManager.shared)
             .previewDisplayName("Edit Mode")
         }
     }

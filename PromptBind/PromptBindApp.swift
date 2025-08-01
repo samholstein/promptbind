@@ -10,6 +10,7 @@ struct PromptBindApp: App {
     @StateObject private var coreDataStack = CoreDataStack.shared
     @StateObject private var cloudKitService = CloudKitService()
     @StateObject private var preferencesManager = PreferencesManager.shared
+    @StateObject private var subscriptionManager = SubscriptionManager.shared
     
     // Environment value to open new windows.
     @Environment(\.openWindow) var openWindow
@@ -32,6 +33,7 @@ struct PromptBindApp: App {
             .environmentObject(coreDataStack)
             .environmentObject(cloudKitService)
             .environmentObject(preferencesManager)
+            .environmentObject(subscriptionManager)
             .sheet(isPresented: $showingAccessibilityPermissionSheet) {
                 AccessibilityPermissionView()
             }
@@ -73,6 +75,7 @@ struct PromptBindApp: App {
                 .environmentObject(cloudKitService)
                 .environmentObject(coreDataStack)
                 .environmentObject(preferencesManager)
+                .environmentObject(subscriptionManager)
         }
         .windowResizability(.contentSize)
         .windowToolbarStyle(.unified)

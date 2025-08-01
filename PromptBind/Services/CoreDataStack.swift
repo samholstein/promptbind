@@ -145,6 +145,9 @@ class CoreDataStack: ObservableObject {
                 
                 // Start monitoring CloudKit events
                 self?.monitorCloudKitEvents()
+                
+                // Update prompt count for subscription manager
+                self?.updatePromptCount()
             }
         }
         
@@ -162,9 +165,35 @@ class CoreDataStack: ObservableObject {
             do {
                 try context.save()
                 print("Core Data saved successfully")
+                
+                // Update prompt count after saving
+                updatePromptCount()
             } catch {
                 print("Core Data save error: \(error.localizedDescription)")
             }
+        }
+    }
+    
+    // MARK: - Subscription Support Methods
+    
+    /// Gets the current prompt count
+    func promptCount() -> Int {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Prompt")
+        do {
+            let count = try viewContext.count(for: request)
+            print("CoreDataStack: Current prompt count: \(count)")
+            return count
+        } catch {
+            print("CoreDataStack: Error counting prompts: \(error)")
+            return 0
+        }
+    }
+    
+    /// Updates the subscription manager with current prompt count
+    private func updatePromptCount() {
+        Task { @MainActor in
+            let count = promptCount()
+            SubscriptionManager.shared.updatePromptCount(count)
         }
     }
     
@@ -228,6 +257,9 @@ class CoreDataStack: ObservableObject {
                         } else {
                             self.lastSyncError = nil
                         }
+                        
+                        // Update prompt count after import
+                        self.updatePromptCount()
                     } else {
                         print("CoreDataStack: Import started...")
                         self.syncStatus = .syncing
