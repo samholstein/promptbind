@@ -24,5 +24,17 @@
     <true/>
     <key>NSHumanReadableCopyright</key>
     <string></string>
+    
+    <!-- Sparkle Configuration -->
+    <key>SUFeedURL</key>
+    <string>https://github.com/YOURUSERNAME/PromptBind/releases.atom</string>
+    <key>SUPublicEDKey</key>
+    <string>YOUR_PUBLIC_KEY_WILL_GO_HERE</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+    <key>SUAllowsAutomaticUpdates</key>
+    <true/>
 </dict>
 </plist>

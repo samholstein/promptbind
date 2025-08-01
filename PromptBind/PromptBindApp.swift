@@ -56,6 +56,10 @@ struct PromptBindApp: App {
                 
                 Divider()
                 
+                Button("Check for Updates...") {
+                    appDelegate.updater.checkForUpdates()
+                }
+                
                 Button("Quit PromptBind...") {
                     NSApplication.shared.terminate(nil)
                 }

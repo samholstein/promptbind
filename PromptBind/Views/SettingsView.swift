@@ -1,4 +1,5 @@
 import SwiftUI
+import Sparkle
 
 struct SettingsView: View {
     @EnvironmentObject private var cloudKitService: CloudKitService
@@ -10,6 +11,12 @@ struct SettingsView: View {
     @State private var showingClearDataConfirmation = false
     @State private var isClearingData = false
     @State private var clearDataError: String?
+    
+    // Access to Sparkle updater
+    private var updater: SPUUpdater {
+        let appDelegate = NSApplication.shared.delegate as! AppDelegate
+        return appDelegate.updater
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -25,6 +32,59 @@ struct SettingsView: View {
                         }
                     }
                     Spacer()
+                }
+                .padding()
+            }
+            
+            // Updates Section
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Updates")
+                        .font(.headline)
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Automatically check for updates")
+                                .font(.body)
+                            Text("PromptBind will check for updates in the background")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: Binding(
+                            get: { updater.automaticallyChecksForUpdates },
+                            set: { updater.automaticallyChecksForUpdates = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                    }
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Automatically download updates")
+                                .font(.body)
+                            Text("Updates will download and install automatically")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: Binding(
+                            get: { updater.automaticallyDownloadsUpdates },
+                            set: { updater.automaticallyDownloadsUpdates = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                    }
+                    
+                    HStack {
+                        Spacer()
+                        Button("Check for Updates Now") {
+                            updater.checkForUpdates()
+                        }
+                        .controlSize(.small)
+                    }
                 }
                 .padding()
             }
@@ -108,7 +168,7 @@ struct SettingsView: View {
             Spacer()
         }
         .padding()
-        .frame(minWidth: 500, idealWidth: 500, maxWidth: 600, minHeight: 400, idealHeight: 450, maxHeight: 550)
+        .frame(minWidth: 500, idealWidth: 500, maxWidth: 600, minHeight: 450, idealHeight: 500, maxHeight: 600)
         .onAppear {
             preferencesManager.syncWithSystem()
         }

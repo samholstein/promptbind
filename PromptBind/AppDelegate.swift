@@ -1,12 +1,20 @@
 import SwiftUI
 import AppKit
+import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    
+    // Sparkle updater
+    private var updaterController: SPUStandardUpdaterController!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // With LSUIElement=true, we start as accessory by default
         // No need to set initial policy
         print("AppDelegate: App launched as UI Element (menu bar only)")
+        
+        // Initialize Sparkle updater
+        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        print("AppDelegate: Sparkle updater initialized")
         
         // Listen for window lifecycle notifications
         NotificationCenter.default.addObserver(
@@ -22,6 +30,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWindow.willCloseNotification,
             object: nil
         )
+    }
+    
+    // Expose updater for external access
+    var updater: SPUUpdater {
+        return updaterController.updater
     }
     
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
