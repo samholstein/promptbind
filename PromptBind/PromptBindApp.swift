@@ -56,7 +56,7 @@ struct PromptBindApp: App {
                 
                 Divider()
                 
-                Button("Quit PromptBind") {
+                Button("Quit PromptBind...") {
                     NSApplication.shared.terminate(nil)
                 }
                 .keyboardShortcut("q", modifiers: .command)

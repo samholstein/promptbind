@@ -24,6 +24,58 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
     
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Show quit warning dialog
+        let alert = NSAlert()
+        alert.messageText = "Quit PromptBind?"
+        alert.informativeText = "If you quit PromptBind, your text expansion prompts will stop working. You can keep them running by closing the window instead, which will run PromptBind in the background."
+        alert.alertStyle = .warning
+        alert.icon = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "Warning")
+        
+        // Add buttons
+        alert.addButton(withTitle: "Run in Background")
+        alert.addButton(withTitle: "Quit Anyway")
+        alert.addButton(withTitle: "Cancel")
+        
+        // Set default button to "Run in Background"
+        alert.buttons[0].keyEquivalent = "\r" // Return key
+        alert.buttons[1].keyEquivalent = ""
+        alert.buttons[2].keyEquivalent = "\u{1b}" // Escape key
+        
+        let response = alert.runModal()
+        
+        switch response {
+        case .alertFirstButtonReturn: // Run in Background
+            print("AppDelegate: User chose to run in background")
+            self.runInBackground()
+            return .terminateCancel // Don't actually quit
+        case .alertSecondButtonReturn: // Quit Anyway
+            print("AppDelegate: User chose to quit anyway")
+            return .terminateNow
+        case .alertThirdButtonReturn: // Cancel
+            print("AppDelegate: User cancelled quit")
+            return .terminateCancel
+        default:
+            return .terminateCancel
+        }
+    }
+    
+    private func runInBackground() {
+        // Close all visible windows but keep the app running
+        for window in NSApp.windows {
+            if window.isVisible && window.canBecomeMain {
+                window.close()
+            }
+        }
+        
+        // Ensure we're in accessory mode (menu bar only)
+        if NSApp.activationPolicy() != .accessory {
+            NSApp.setActivationPolicy(.accessory)
+        }
+        
+        print("AppDelegate: App now running in background")
+    }
+    
     @objc private func windowDidBecomeKey(_ notification: Notification) {
         // When a window becomes key, show in dock
         if NSApp.activationPolicy() != .regular {
