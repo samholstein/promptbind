@@ -27,9 +27,9 @@
     
     <!-- Sparkle Configuration -->
     <key>SUFeedURL</key>
-    <string>https://github.com/YOURUSERNAME/PromptBind/releases.atom</string>
+    <string>https://github.com/samholstein/promptbind/releases.atom</string>
     <key>SUPublicEDKey</key>
-    <string>YOUR_PUBLIC_KEY_WILL_GO_HERE</string>
+    <string>hLIYXExd3YZDY7kXxhUrScMuS4IdJkyysLjRKDHRihM=</string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUScheduledCheckInterval</key>
