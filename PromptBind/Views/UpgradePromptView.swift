@@ -141,27 +141,13 @@ struct UpgradePromptView: View {
         isCreatingCheckout = true
         checkoutError = nil
         
-        Task {
-            do {
-                print("UpgradePromptView: Creating Stripe checkout session...")
-                let checkoutResponse = try await stripeService.createCheckoutSession()
-                
-                // Open checkout URL in browser
-                await MainActor.run {
-                    stripeService.openCheckoutUrl(checkoutResponse.checkoutUrl)
-                    
-                    // Close the upgrade prompt since checkout is opening
-                    dismiss()
-                }
-                
-            } catch {
-                await MainActor.run {
-                    isCreatingCheckout = false
-                    checkoutError = "Failed to start checkout: \(error.localizedDescription)"
-                    print("UpgradePromptView: Checkout error: \(error)")
-                }
-            }
-        }
+        print("UpgradePromptView: Opening Stripe Payment Link...")
+        
+        // Use the secure Stripe Payment Link
+        stripeService.openCheckout()
+        
+        // Close the upgrade prompt since checkout is opening
+        dismiss()
     }
 }
 

@@ -25,6 +25,19 @@
     <key>NSHumanReadableCopyright</key>
     <string></string>
     
+    <!-- URL Scheme Registration for Stripe Checkout -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>PromptBind Payment Handler</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>promptbind</string>
+            </array>
+        </dict>
+    </array>
+    
     <!-- Sparkle Configuration -->
     <key>SUFeedURL</key>
     <string>https://github.com/samholstein/promptbind/releases.atom</string>

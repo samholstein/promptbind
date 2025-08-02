@@ -10,15 +10,20 @@ class SubscriptionManager: ObservableObject {
     @Published var promptCount: Int = 0
     @Published var isLoading: Bool = false
     @Published var lastError: String?
+    @Published var lastSyncDate: Date?
+    @Published var isCheckingStripeStatus: Bool = false
     
     // MARK: - Private Properties
     private let maxFreePrompts = 5
     private var cancellables = Set<AnyCancellable>()
     
-    // MARK: - Subscription Status
+    // Periodic checking timer
+    private var periodicCheckTimer: Timer?
+    private let checkInterval: TimeInterval = 24 * 60 * 60 // 24 hours
+    
+    // MARK: - Subscription Status (Simplified - no local trial logic)
     enum SubscriptionStatus: Equatable {
         case free
-        case trialing(expiresAt: Date)
         case subscribed(expiresAt: Date?)
         case expired
         
@@ -26,8 +31,6 @@ class SubscriptionManager: ObservableObject {
             switch self {
             case .free:
                 return false
-            case .trialing(let expiresAt):
-                return expiresAt > Date()
             case .subscribed:
                 return true
             case .expired:
@@ -39,8 +42,6 @@ class SubscriptionManager: ObservableObject {
             switch self {
             case .free:
                 return "Free"
-            case .trialing:
-                return "Trial"
             case .subscribed:
                 return "Pro"
             case .expired:
@@ -50,11 +51,231 @@ class SubscriptionManager: ObservableObject {
     }
     
     private init() {
-        loadSubscriptionState()
+        print("SubscriptionManager: Initializing...")
+        
+        // Load subscription from Core Data first (CloudKit-synced data)
+        loadSubscriptionFromCoreData()
+        
+        // Fallback to UserDefaults if no Core Data subscription exists
+        if case .free = subscriptionStatus {
+            loadSubscriptionFromUserDefaults()
+        }
+        
         print("SubscriptionManager: Initialized with status: \(subscriptionStatus), count: \(promptCount)")
         
         // Refresh prompt count from Core Data on startup
         refreshPromptCount()
+        
+        // Start periodic subscription checking
+        startPeriodicChecking()
+        
+        // Check subscription status on launch (after a delay to let things settle)
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+            await checkSubscriptionStatusFromStripe()
+        }
+    }
+    
+    // MARK: - Core Data Integration
+    
+    /// Loads subscription status from Core Data (CloudKit-synced)
+    private func loadSubscriptionFromCoreData() {
+        print("SubscriptionManager: Loading subscription from Core Data...")
+        
+        // Get all subscriptions and find the most recent active one
+        let allSubscriptions = CoreDataStack.shared.getAllSubscriptions()
+        
+        // Find the most recent active subscription across all devices
+        let activeSubscription = allSubscriptions
+            .filter { $0.isActiveSubscription }
+            .sorted { $0.subscriptionUpdatedAt > $1.subscriptionUpdatedAt }
+            .first
+        
+        if let subscription = activeSubscription {
+            print("SubscriptionManager: Found active subscription from device: \(subscription.subscriptionDeviceId.prefix(8))...")
+            
+            let stripeData = SubscriptionData(
+                status: subscription.subscriptionStatus,
+                expiresAt: subscription.subscriptionExpiresAt,
+                customerId: subscription.subscriptionCustomerId,
+                subscriptionId: subscription.subscriptionStripeSubscriptionId
+            )
+            
+            updateFromStripeData(stripeData)
+            lastSyncDate = subscription.subscriptionUpdatedAt
+        } else {
+            print("SubscriptionManager: No active subscription found in Core Data")
+        }
+    }
+    
+    /// Saves current subscription status to Core Data (will sync via CloudKit)
+    private func saveSubscriptionToCoreData() {
+        print("SubscriptionManager: Saving subscription to Core Data...")
+        
+        let deviceId = DeviceIdentificationService.shared.getDeviceID()
+        let status: String
+        
+        switch subscriptionStatus {
+        case .free:
+            status = "free"
+        case .subscribed:
+            status = "active" // Use Stripe terminology
+        case .expired:
+            status = "expired"
+        }
+        
+        // Get existing device subscription from Core Data to preserve Stripe IDs
+        let existingSubscription = CoreDataStack.shared.getDeviceSubscription()
+        
+        let _ = CoreDataStack.shared.saveSubscription(
+            deviceId: deviceId,
+            status: status,
+            customerId: existingSubscription?.subscriptionCustomerId,
+            stripeSubscriptionId: existingSubscription?.subscriptionStripeSubscriptionId,
+            expiresAt: {
+                if case .subscribed(let expiresAt) = subscriptionStatus {
+                    return expiresAt
+                }
+                return nil
+            }()
+        )
+        
+        lastSyncDate = Date()
+        print("SubscriptionManager: Saved subscription to Core Data (will sync via CloudKit)")
+    }
+    
+    // MARK: - CloudKit Sync
+    
+    /// Syncs subscription status from CloudKit (called when CloudKit import completes)
+    func syncSubscriptionFromCloudKit() {
+        print("SubscriptionManager: Syncing subscription from CloudKit...")
+        
+        let previousStatus = subscriptionStatus
+        
+        // Reload from Core Data (which now has updated CloudKit data)
+        loadSubscriptionFromCoreData()
+        
+        // Check if status changed due to CloudKit sync
+        if previousStatus != subscriptionStatus {
+            print("SubscriptionManager: Subscription status changed from CloudKit sync: \(previousStatus) → \(subscriptionStatus)")
+            
+            // If we gained Pro access from another device, we might want to notify the user
+            if !previousStatus.isActive && subscriptionStatus.isActive {
+                print("SubscriptionManager: Pro access gained from CloudKit sync!")
+            }
+        }
+    }
+    
+    /// Resolves conflicts when multiple devices have different subscription states
+    private func resolveSubscriptionConflicts() {
+        print("SubscriptionManager: Resolving subscription conflicts...")
+        
+        let allSubscriptions = CoreDataStack.shared.getAllSubscriptions()
+        
+        // Find the most authoritative subscription (most recent with Stripe data)
+        let authoritativeSubscription = allSubscriptions
+            .filter { subscription in
+                // Prioritize subscriptions with Stripe data
+                return subscription.subscriptionCustomerId != nil && 
+                       subscription.subscriptionStripeSubscriptionId != nil
+            }
+            .sorted { lhs, rhs in
+                // Sort by update date, but prioritize active subscriptions
+                if lhs.isActiveSubscription != rhs.isActiveSubscription {
+                    return lhs.isActiveSubscription && !rhs.isActiveSubscription
+                }
+                return lhs.subscriptionUpdatedAt > rhs.subscriptionUpdatedAt
+            }
+            .first
+        
+        if let authoritative = authoritativeSubscription {
+            print("SubscriptionManager: Using authoritative subscription from device: \(authoritative.subscriptionDeviceId.prefix(8))...")
+            
+            let stripeData = SubscriptionData(
+                status: authoritative.subscriptionStatus,
+                expiresAt: authoritative.subscriptionExpiresAt,
+                customerId: authoritative.subscriptionCustomerId,
+                subscriptionId: authoritative.subscriptionStripeSubscriptionId
+            )
+            
+            updateFromStripeData(stripeData)
+        }
+    }
+    
+    // MARK: - Periodic Status Checking
+    
+    /// Starts periodic subscription status checking (every 24 hours)
+    private func startPeriodicChecking() {
+        print("SubscriptionManager: Starting periodic subscription checking (every 24 hours)")
+        
+        periodicCheckTimer = Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.checkSubscriptionStatusFromStripe()
+            }
+        }
+    }
+    
+    /// Checks subscription status with Stripe (if we have a customer ID)
+    func checkSubscriptionStatusFromStripe() async {
+        guard !isCheckingStripeStatus else {
+            print("SubscriptionManager: Already checking Stripe status, skipping...")
+            return
+        }
+        
+        print("SubscriptionManager: Checking subscription status from Stripe...")
+        
+        isCheckingStripeStatus = true
+        lastError = nil
+        
+        defer {
+            isCheckingStripeStatus = false
+        }
+        
+        do {
+            if let subscriptionData = try await StripeService.shared.checkDeviceSubscriptionStatus() {
+                print("SubscriptionManager: Retrieved subscription status from Stripe: \(subscriptionData.status)")
+                
+                // Update local status with Stripe data
+                updateFromStripeData(subscriptionData)
+                
+                // Save to Core Data (will sync to other devices via CloudKit)
+                saveSubscriptionToCoreData()
+                
+                // Update device subscription with fresh Stripe data
+                if let customerId = subscriptionData.customerId,
+                   let subscriptionId = subscriptionData.subscriptionId {
+                    
+                    let deviceId = DeviceIdentificationService.shared.getDeviceID()
+                    let _ = CoreDataStack.shared.saveSubscription(
+                        deviceId: deviceId,
+                        status: subscriptionData.status,
+                        customerId: customerId,
+                        stripeSubscriptionId: subscriptionId,
+                        expiresAt: subscriptionData.expiresAt
+                    )
+                }
+                
+                print("SubscriptionManager: Successfully updated subscription from Stripe")
+                
+            } else {
+                print("SubscriptionManager: No subscription found in Stripe for this device")
+            }
+            
+        } catch {
+            print("SubscriptionManager: Error checking Stripe subscription status: \(error)")
+            lastError = "Failed to check subscription status: \(error.localizedDescription)"
+        }
+    }
+    
+    /// Manually refresh subscription status (for user-triggered refresh)
+    func refreshSubscriptionStatus() async {
+        print("SubscriptionManager: Manual subscription refresh requested")
+        
+        // First, sync from CloudKit
+        syncSubscriptionFromCloudKit()
+        
+        // Then check with Stripe
+        await checkSubscriptionStatusFromStripe()
     }
     
     // MARK: - Public Methods
@@ -62,15 +283,16 @@ class SubscriptionManager: ObservableObject {
     /// Force refresh the prompt count from Core Data
     func refreshPromptCount() {
         let count = CoreDataStack.shared.promptCount()
-        updatePromptCount(count)
-        print("SubscriptionManager: Refreshed prompt count: \(count)")
+        if count != promptCount {
+            updatePromptCount(count)
+        }
     }
     
     /// Updates the current prompt count
     func updatePromptCount(_ count: Int) {
         print("SubscriptionManager: Updating prompt count from \(promptCount) to \(count)")
         promptCount = count
-        saveSubscriptionState() // Save the updated count
+        saveSubscriptionState() // Save to UserDefaults for quick access
     }
     
     /// Checks if user can create a new prompt
@@ -78,12 +300,8 @@ class SubscriptionManager: ObservableObject {
         let result: Bool
         switch subscriptionStatus {
         case .free:
-            // FIX: Changed from < to <= - user cannot create if they already have 5 or more
             result = promptCount < maxFreePrompts
             print("SubscriptionManager: Can create prompt (free): \(result) (\(promptCount) < \(maxFreePrompts))")
-        case .trialing(let expiresAt):
-            result = expiresAt > Date()
-            print("SubscriptionManager: Can create prompt (trial): \(result)")
         case .subscribed:
             result = true
             print("SubscriptionManager: Can create prompt (subscribed): true")
@@ -115,21 +333,41 @@ class SubscriptionManager: ObservableObject {
         return max(0, maxFreePrompts - promptCount)
     }
     
-    // MARK: - Subscription Management
+    // MARK: - Subscription Management (Stripe-driven)
+    
+    /// Updates subscription status from Stripe data
+    func updateFromStripeData(_ stripeData: SubscriptionData) {
+        let previousStatus = subscriptionStatus
+        
+        print("SubscriptionManager: Updating from Stripe data - Status: \(stripeData.status)")
+        
+        switch stripeData.status.lowercased() {
+        case "active", "trialing":
+            // Both active and trialing subscriptions get Pro access
+            // Stripe handles the trial logic internally
+            subscriptionStatus = .subscribed(expiresAt: stripeData.expiresAt)
+            print("SubscriptionManager: Set to subscribed (Stripe status: \(stripeData.status))")
+        case "canceled", "cancelled", "past_due", "unpaid", "incomplete", "incomplete_expired":
+            subscriptionStatus = .expired
+            print("SubscriptionManager: Set to expired (Stripe status: \(stripeData.status))")
+        default:
+            subscriptionStatus = .free
+            print("SubscriptionManager: Set to free (Stripe status: \(stripeData.status))")
+        }
+        
+        // Only save if status actually changed
+        if previousStatus != subscriptionStatus {
+            saveSubscriptionState() // Quick save to UserDefaults
+            saveSubscriptionToCoreData() // Save to Core Data (CloudKit sync)
+        }
+    }
     
     /// Activates a subscription (called after successful Stripe payment)
     func activateSubscription(expiresAt: Date? = nil) {
         print("SubscriptionManager: Activating subscription")
         subscriptionStatus = .subscribed(expiresAt: expiresAt)
         saveSubscriptionState()
-    }
-    
-    /// Starts a trial period
-    func startTrial(duration: TimeInterval = 30 * 24 * 60 * 60) { // 30 days default
-        let expiresAt = Date().addingTimeInterval(duration)
-        print("SubscriptionManager: Starting trial until \(expiresAt)")
-        subscriptionStatus = .trialing(expiresAt: expiresAt)
-        saveSubscriptionState()
+        saveSubscriptionToCoreData()
     }
     
     /// Expires the current subscription
@@ -137,6 +375,7 @@ class SubscriptionManager: ObservableObject {
         print("SubscriptionManager: Expiring subscription")
         subscriptionStatus = .expired
         saveSubscriptionState()
+        saveSubscriptionToCoreData()
     }
     
     /// Resets to free tier (useful for testing)
@@ -144,11 +383,12 @@ class SubscriptionManager: ObservableObject {
         print("SubscriptionManager: Resetting to free tier")
         subscriptionStatus = .free
         saveSubscriptionState()
+        saveSubscriptionToCoreData()
     }
     
-    // MARK: - Persistence
+    // MARK: - UserDefaults Persistence (for quick access)
     
-    private func loadSubscriptionState() {
+    private func loadSubscriptionFromUserDefaults() {
         let defaults = UserDefaults.standard
         
         // Load subscription status
@@ -160,7 +400,7 @@ class SubscriptionManager: ObservableObject {
         // Load prompt count (will be refreshed from Core Data)
         promptCount = defaults.integer(forKey: "promptCount")
         
-        print("SubscriptionManager: Loaded state - Status: \(subscriptionStatus), Count: \(promptCount)")
+        print("SubscriptionManager: Loaded state from UserDefaults - Status: \(subscriptionStatus), Count: \(promptCount)")
     }
     
     private func saveSubscriptionState() {
@@ -175,11 +415,15 @@ class SubscriptionManager: ObservableObject {
         // Save prompt count
         defaults.set(promptCount, forKey: "promptCount")
         
-        print("SubscriptionManager: Saved state - Status: \(subscriptionStatus), Count: \(promptCount)")
+        print("SubscriptionManager: Saved state to UserDefaults - Status: \(subscriptionStatus), Count: \(promptCount)")
+    }
+    
+    deinit {
+        periodicCheckTimer?.invalidate()
     }
 }
 
-// MARK: - Serialization Helper
+// MARK: - Serialization Helper (Simplified)
 
 private struct SubscriptionStatusData: Codable {
     let type: String
@@ -189,8 +433,6 @@ private struct SubscriptionStatusData: Codable {
         switch status {
         case .free:
             return SubscriptionStatusData(type: "free", expiresAt: nil)
-        case .trialing(let expiresAt):
-            return SubscriptionStatusData(type: "trialing", expiresAt: expiresAt)
         case .subscribed(let expiresAt):
             return SubscriptionStatusData(type: "subscribed", expiresAt: expiresAt)
         case .expired:
@@ -202,12 +444,13 @@ private struct SubscriptionStatusData: Codable {
         switch type {
         case "free":
             return .free
-        case "trialing":
-            return .trialing(expiresAt: expiresAt ?? Date())
         case "subscribed":
             return .subscribed(expiresAt: expiresAt)
         case "expired":
             return .expired
+        // Handle legacy trialing status by converting to subscribed
+        case "trialing":
+            return .subscribed(expiresAt: expiresAt)
         default:
             return .free
         }

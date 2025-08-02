@@ -288,8 +288,6 @@ struct SettingsView: View {
         switch subscriptionManager.subscriptionStatus {
         case .free:
             return .secondary
-        case .trialing:
-            return .orange
         case .subscribed:
             return .green
         case .expired:

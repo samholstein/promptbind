@@ -43,6 +43,9 @@ struct PromptBindApp: App {
                 print("PromptBindApp: Main window appeared")
                 setupApp()
             }
+            .onOpenURL { url in
+                handleIncomingURL(url)
+            }
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 600)
@@ -148,6 +151,133 @@ struct PromptBindApp: App {
             permissionCheckTimer?.invalidate()
             permissionCheckTimer = nil
             triggerMonitor?.startMonitoring()
+        }
+    }
+    
+    // MARK: - URL Handling for Stripe Checkout
+    
+    private func handleIncomingURL(_ url: URL) {
+        print("PromptBindApp: Received URL: \(url)")
+        
+        guard url.scheme == "promptbind" else {
+            print("PromptBindApp: Ignoring URL with unknown scheme: \(url.scheme ?? "nil")")
+            return
+        }
+        
+        switch url.host {
+        case "subscription":
+            handleSubscriptionURL(url)
+        default:
+            print("PromptBindApp: Unknown URL host: \(url.host ?? "nil")")
+        }
+    }
+    
+    private func handleSubscriptionURL(_ url: URL) {
+        print("PromptBindApp: Handling subscription URL: \(url)")
+        
+        guard let path = url.path.split(separator: "/").first else {
+            print("PromptBindApp: No path in subscription URL")
+            return
+        }
+        
+        switch String(path) {
+        case "success":
+            handleSubscriptionSuccess(url)
+        case "cancel":
+            handleSubscriptionCancel(url)
+        default:
+            print("PromptBindApp: Unknown subscription path: \(path)")
+        }
+    }
+    
+    private func handleSubscriptionSuccess(_ url: URL) {
+        print("PromptBindApp: Handling subscription success")
+        
+        // Extract session_id from URL parameters
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let queryItems = components.queryItems,
+              let sessionId = queryItems.first(where: { $0.name == "session_id" })?.value else {
+            print("PromptBindApp: No session_id found in success URL")
+            showSubscriptionError("Payment completed but could not verify subscription. Please contact support.")
+            return
+        }
+        
+        print("PromptBindApp: Found session ID: \(sessionId)")
+        
+        // Show success message immediately
+        showSubscriptionSuccess("Payment successful! Verifying your subscription...")
+        
+        // Verify the subscription with Stripe
+        Task { @MainActor in
+            do {
+                print("PromptBindApp: Verifying subscription with Stripe for session: \(sessionId)")
+                
+                // Use the new Stripe verification method
+                let subscriptionData = try await stripeService.verifyCheckoutSession(sessionId)
+                
+                print("PromptBindApp: Subscription verified - Status: \(subscriptionData.status)")
+                
+                // Save subscription to Core Data (will sync via CloudKit)
+                let deviceId = DeviceIdentificationService.shared.getDeviceID()
+                let _ = coreDataStack.saveSubscription(
+                    deviceId: deviceId,
+                    status: subscriptionData.status,
+                    customerId: subscriptionData.customerId,
+                    stripeSubscriptionId: subscriptionData.subscriptionId,
+                    expiresAt: subscriptionData.expiresAt
+                )
+                
+                // Update subscription manager
+                subscriptionManager.activateSubscription(expiresAt: subscriptionData.expiresAt)
+                
+                showSubscriptionSuccess("Welcome to PromptBind Pro! Your subscription is now active.")
+                
+            } catch {
+                print("PromptBindApp: Error verifying subscription: \(error)")
+                showSubscriptionError("Payment completed but verification failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func handleSubscriptionCancel(_ url: URL) {
+        print("PromptBindApp: Handling subscription cancellation")
+        showSubscriptionInfo("Subscription upgrade was cancelled. You can try again anytime!")
+    }
+    
+    // MARK: - User Notifications
+    
+    private func showSubscriptionSuccess(_ message: String) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Subscription Success"
+            alert.informativeText = message
+            alert.alertStyle = .informational
+            alert.icon = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Success")
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+    
+    private func showSubscriptionError(_ message: String) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Subscription Error"
+            alert.informativeText = message
+            alert.alertStyle = .warning
+            alert.icon = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Error")
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+    
+    private func showSubscriptionInfo(_ message: String) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Subscription Update"
+            alert.informativeText = message
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
         }
     }
 }

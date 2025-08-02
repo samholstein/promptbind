@@ -76,6 +76,74 @@ class CoreDataStack: ObservableObject {
         
         promptEntity.properties = [promptId, promptTrigger, promptExpansion, promptEnabled]
         
+        // Create Subscription entity
+        let subscriptionEntity = NSEntityDescription()
+        subscriptionEntity.name = "Subscription"
+        subscriptionEntity.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
+        
+        let subscriptionId = NSAttributeDescription()
+        subscriptionId.name = "id"
+        subscriptionId.attributeType = .UUIDAttributeType
+        subscriptionId.isOptional = true
+        subscriptionId.defaultValue = UUID()
+        
+        let subscriptionDeviceId = NSAttributeDescription()
+        subscriptionDeviceId.name = "deviceId"
+        subscriptionDeviceId.attributeType = .stringAttributeType
+        subscriptionDeviceId.isOptional = true
+        subscriptionDeviceId.defaultValue = ""
+        
+        let subscriptionStatus = NSAttributeDescription()
+        subscriptionStatus.name = "status"
+        subscriptionStatus.attributeType = .stringAttributeType
+        subscriptionStatus.isOptional = true
+        subscriptionStatus.defaultValue = "free"
+        
+        let subscriptionCustomerId = NSAttributeDescription()
+        subscriptionCustomerId.name = "customerId"
+        subscriptionCustomerId.attributeType = .stringAttributeType
+        subscriptionCustomerId.isOptional = true
+        
+        let subscriptionStripeSubscriptionId = NSAttributeDescription()
+        subscriptionStripeSubscriptionId.name = "stripeSubscriptionId"
+        subscriptionStripeSubscriptionId.attributeType = .stringAttributeType
+        subscriptionStripeSubscriptionId.isOptional = true
+        
+        let subscriptionExpiresAt = NSAttributeDescription()
+        subscriptionExpiresAt.name = "expiresAt"
+        subscriptionExpiresAt.attributeType = .dateAttributeType
+        subscriptionExpiresAt.isOptional = true
+        
+        let subscriptionLastChecked = NSAttributeDescription()
+        subscriptionLastChecked.name = "lastChecked"
+        subscriptionLastChecked.attributeType = .dateAttributeType
+        subscriptionLastChecked.isOptional = true
+        subscriptionLastChecked.defaultValue = Date()
+        
+        let subscriptionCreatedAt = NSAttributeDescription()
+        subscriptionCreatedAt.name = "createdAt"
+        subscriptionCreatedAt.attributeType = .dateAttributeType
+        subscriptionCreatedAt.isOptional = true
+        subscriptionCreatedAt.defaultValue = Date()
+        
+        let subscriptionUpdatedAt = NSAttributeDescription()
+        subscriptionUpdatedAt.name = "updatedAt"
+        subscriptionUpdatedAt.attributeType = .dateAttributeType
+        subscriptionUpdatedAt.isOptional = true
+        subscriptionUpdatedAt.defaultValue = Date()
+        
+        subscriptionEntity.properties = [
+            subscriptionId,
+            subscriptionDeviceId,
+            subscriptionStatus,
+            subscriptionCustomerId,
+            subscriptionStripeSubscriptionId,
+            subscriptionExpiresAt,
+            subscriptionLastChecked,
+            subscriptionCreatedAt,
+            subscriptionUpdatedAt
+        ]
+        
         // Create relationship between Category and Prompt
         let categoryPromptsRelationship = NSRelationshipDescription()
         categoryPromptsRelationship.name = "prompts"
@@ -101,8 +169,8 @@ class CoreDataStack: ObservableObject {
         categoryEntity.properties.append(categoryPromptsRelationship)
         promptEntity.properties.append(promptCategoryRelationship)
         
-        // Add entities to model
-        model.entities = [categoryEntity, promptEntity]
+        // Add entities to model (now including Subscription)
+        model.entities = [categoryEntity, promptEntity, subscriptionEntity]
         
         // Create container with our model
         let container = NSPersistentCloudKitContainer(name: "PromptBind", managedObjectModel: model)
@@ -260,6 +328,13 @@ class CoreDataStack: ObservableObject {
                         
                         // Update prompt count after import
                         self.updatePromptCount()
+                        
+                        // Notify subscription manager about potential subscription changes
+                        Task { @MainActor in
+                            SubscriptionManager.shared.syncSubscriptionFromCloudKit()
+                        }
+                        
+                        // TODO: Add subscription sync when we update SubscriptionManager in Phase 4
                     } else {
                         print("CoreDataStack: Import started...")
                         self.syncStatus = .syncing
@@ -316,6 +391,85 @@ class CoreDataStack: ObservableObject {
     
     private init() {
         // We call checkCloudKitStatus from the persistentContainer setup now
+    }
+    
+    /// Gets the current device's subscription record
+    func getDeviceSubscription() -> NSManagedObject? {
+        let deviceId = DeviceIdentificationService.shared.getDeviceID()
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Subscription")
+        request.predicate = NSPredicate(format: "deviceId == %@", deviceId)
+        request.fetchLimit = 1
+        
+        do {
+            let subscriptions = try viewContext.fetch(request)
+            return subscriptions.first
+        } catch {
+            print("CoreDataStack: Error fetching device subscription: \(error)")
+            return nil
+        }
+    }
+    
+    /// Gets all subscription records (for syncing across devices)
+    func getAllSubscriptions() -> [NSManagedObject] {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Subscription")
+        request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+        
+        do {
+            return try viewContext.fetch(request)
+        } catch {
+            print("CoreDataStack: Error fetching all subscriptions: \(error)")
+            return []
+        }
+    }
+    
+    /// Creates or updates a subscription record
+    func saveSubscription(
+        deviceId: String,
+        status: String,
+        customerId: String? = nil,
+        stripeSubscriptionId: String? = nil,
+        expiresAt: Date? = nil
+    ) -> NSManagedObject {
+        // Try to find existing subscription for this device
+        let request = NSFetchRequest<NSManagedObject>(entityName: "Subscription")
+        request.predicate = NSPredicate(format: "deviceId == %@", deviceId)
+        request.fetchLimit = 1
+        
+        let subscription: NSManagedObject
+        
+        do {
+            let existing = try viewContext.fetch(request)
+            if let existingSubscription = existing.first {
+                subscription = existingSubscription
+                print("CoreDataStack: Updating existing subscription for device: \(deviceId)")
+            } else {
+                subscription = NSEntityDescription.insertNewObject(forEntityName: "Subscription", into: viewContext)
+                subscription.setValue(UUID(), forKey: "id")
+                subscription.setValue(deviceId, forKey: "deviceId")
+                subscription.setValue(Date(), forKey: "createdAt")
+                print("CoreDataStack: Creating new subscription for device: \(deviceId)")
+            }
+        } catch {
+            print("CoreDataStack: Error checking for existing subscription, creating new one: \(error)")
+            subscription = NSEntityDescription.insertNewObject(forEntityName: "Subscription", into: viewContext)
+            subscription.setValue(UUID(), forKey: "id")
+            subscription.setValue(deviceId, forKey: "deviceId")
+            subscription.setValue(Date(), forKey: "createdAt")
+        }
+        
+        // Update subscription properties
+        subscription.setValue(status, forKey: "status")
+        subscription.setValue(customerId, forKey: "customerId")
+        subscription.setValue(stripeSubscriptionId, forKey: "stripeSubscriptionId")
+        subscription.setValue(expiresAt, forKey: "expiresAt")
+        subscription.setValue(Date(), forKey: "lastChecked")
+        subscription.setValue(Date(), forKey: "updatedAt")
+        
+        // Save changes
+        save()
+        
+        print("CoreDataStack: Saved subscription - Status: \(status), Device: \(deviceId)")
+        return subscription
     }
 }
 
