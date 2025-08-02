@@ -58,11 +58,22 @@ struct GeneralSettingsView: View {
 }
 
 struct UpdatesSettingsView: View {
-    private var updater: SPUUpdater? {
-        guard let appDelegate = NSApplication.shared.delegate as? AppDelegate else {
-            return nil
-        }
-        return appDelegate.updater
+    private var updaterController: SPUStandardUpdaterController? {
+        (NSApplication.shared.delegate as? AppDelegate)?.updaterController
+    }
+    
+    private var autoCheckBinding: Binding<Bool> {
+        Binding(
+            get: { self.updaterController?.updater.automaticallyChecksForUpdates ?? true },
+            set: { newValue in self.updaterController?.updater.automaticallyChecksForUpdates = newValue }
+        )
+    }
+
+    private var autoDownloadBinding: Binding<Bool> {
+        Binding(
+            get: { self.updaterController?.updater.automaticallyDownloadsUpdates ?? false },
+            set: { newValue in self.updaterController?.updater.automaticallyDownloadsUpdates = newValue }
+        )
     }
     
     var body: some View {
@@ -72,24 +83,18 @@ struct UpdatesSettingsView: View {
                 .fontWeight(.bold)
             
             VStack(alignment: .leading, spacing: 16) {
-                Toggle("Automatically check for updates", isOn: Binding(
-                    get: { updater?.automaticallyChecksForUpdates ?? true },
-                    set: { updater?.automaticallyChecksForUpdates = $0 }
-                ))
-                .disabled(updater == nil)
+                Toggle("Automatically check for updates", isOn: autoCheckBinding)
+                    .disabled(updaterController == nil)
                 
-                Toggle("Automatically download updates", isOn: Binding(
-                    get: { updater?.automaticallyDownloadsUpdates ?? false },
-                    set: { updater?.automaticallyDownloadsUpdates = $0 }
-                ))
-                .disabled(updater == nil)
+                Toggle("Automatically download updates", isOn: autoDownloadBinding)
+                    .disabled(updaterController == nil)
                 
                 HStack {
                     Spacer()
                     Button("Check for Updates Now") {
-                        updater?.checkForUpdates()
+                        updaterController?.checkForUpdates(nil)
                     }
-                    .disabled(updater == nil)
+                    .disabled(updaterController == nil)
                 }
             }
             

@@ -16,12 +16,21 @@ struct SettingsView: View {
     @State private var clearDataError: String?
     @State private var showingUpgradePrompt = false
     
-    // Safer Sparkle updater access
-    private var updater: SPUUpdater? {
-        guard let appDelegate = NSApplication.shared.delegate as? AppDelegate else {
-            return nil
-        }
-        return appDelegate.updater
+    // The updater controller is now passed in directly.
+    let updaterController: SPUStandardUpdaterController?
+    
+    private var autoCheckBinding: Binding<Bool> {
+        Binding(
+            get: { self.updaterController?.updater.automaticallyChecksForUpdates ?? true },
+            set: { newValue in self.updaterController?.updater.automaticallyChecksForUpdates = newValue }
+        )
+    }
+
+    private var autoDownloadBinding: Binding<Bool> {
+        Binding(
+            get: { self.updaterController?.updater.automaticallyDownloadsUpdates ?? false },
+            set: { newValue in self.updaterController?.updater.automaticallyDownloadsUpdates = newValue }
+        )
     }
     
     var body: some View {
@@ -144,12 +153,9 @@ struct SettingsView: View {
                             
                             Spacer()
                             
-                            Toggle("", isOn: Binding(
-                                get: { updater?.automaticallyChecksForUpdates ?? true },
-                                set: { updater?.automaticallyChecksForUpdates = $0 }
-                            ))
-                            .toggleStyle(.switch)
-                            .disabled(updater == nil)
+                            Toggle("", isOn: autoCheckBinding)
+                                .toggleStyle(.switch)
+                                .disabled(updaterController == nil)
                         }
                         
                         HStack {
@@ -163,21 +169,18 @@ struct SettingsView: View {
                             
                             Spacer()
                             
-                            Toggle("", isOn: Binding(
-                                get: { updater?.automaticallyDownloadsUpdates ?? false },
-                                set: { updater?.automaticallyDownloadsUpdates = $0 }
-                            ))
-                            .toggleStyle(.switch)
-                            .disabled(updater == nil)
+                            Toggle("", isOn: autoDownloadBinding)
+                                .toggleStyle(.switch)
+                                .disabled(updaterController == nil)
                         }
                         
                         HStack {
                             Spacer()
                             Button("Check for Updates Now") {
-                                updater?.checkForUpdates()
+                                updaterController?.checkForUpdates(nil)
                             }
                             .controlSize(.small)
-                            .disabled(updater == nil)
+                            .disabled(updaterController == nil)
                         }
                     }
                     .padding()
@@ -429,7 +432,7 @@ struct NewiCloudSyncStatusView: View {
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        SettingsView()
+        SettingsView(updaterController: nil)
             .environmentObject(CloudKitService())
             .environmentObject(CoreDataStack.shared)
             .environmentObject(PreferencesManager.shared)

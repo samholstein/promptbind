@@ -97,7 +97,7 @@ struct PromptBindApp: App {
         }
         
         WindowGroup(id: "settings") {
-            SettingsView()
+            SettingsView(updaterController: appDelegate.updaterController)
                 .environmentObject(cloudKitService)
                 .environmentObject(coreDataStack)
                 .environmentObject(preferencesManager)

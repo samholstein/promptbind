@@ -5,7 +5,7 @@ import Sparkle
 class AppDelegate: NSObject, NSApplicationDelegate {
     
     // Sparkle updater
-    private var updaterController: SPUStandardUpdaterController!
+    var updaterController: SPUStandardUpdaterController!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // With LSUIElement=true, we start as accessory by default
