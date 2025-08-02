@@ -6,12 +6,14 @@ struct SettingsView: View {
     @EnvironmentObject private var coreDataStack: CoreDataStack
     @EnvironmentObject private var preferencesManager: PreferencesManager
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
+    @EnvironmentObject private var stripeService: StripeService
     
     @State private var showingCloudKitHelp = false
     @State private var showingClearDataWarning = false
     @State private var showingClearDataConfirmation = false
     @State private var isClearingData = false
     @State private var clearDataError: String?
+    @State private var showingUpgradePrompt = false
     
     // Safer Sparkle updater access
     private var updater: SPUUpdater? {
@@ -59,7 +61,7 @@ struct SettingsView: View {
                         
                         if !subscriptionManager.subscriptionStatus.isActive {
                             Button("Upgrade to Pro") {
-                                handleUpgradeButtonTap()
+                                showingUpgradePrompt = true
                             }
                             .buttonStyle(.borderedProminent)
                         }
@@ -254,6 +256,9 @@ struct SettingsView: View {
         .onAppear {
             preferencesManager.syncWithSystem()
         }
+        .sheet(isPresented: $showingUpgradePrompt) {
+            UpgradePromptView()
+        }
         .alert("iCloud Sync Help", isPresented: $showingCloudKitHelp) {
             Button("OK") { }
         } message: {
@@ -293,26 +298,6 @@ struct SettingsView: View {
     }
     
     // MARK: - Actions
-    
-    private func handleUpgradeButtonTap() {
-        print("SettingsView: Upgrade button tapped - TODO: Implement Stripe checkout")
-        
-        // TODO: Phase 2 - Launch Stripe checkout
-        Task {
-            do {
-                // For now, we'll just log this - real Stripe integration coming next
-                print("SettingsView: Would create Stripe checkout session here")
-                
-                #if DEBUG
-                // Temporary Pro activation for testing
-                subscriptionManager.activateSubscription()
-                #endif
-                
-            } catch {
-                print("SettingsView: Error creating checkout session: \(error)")
-            }
-        }
-    }
     
     private func clearAllData() {
         isClearingData = true
@@ -443,5 +428,6 @@ struct SettingsView_Previews: PreviewProvider {
             .environmentObject(CoreDataStack.shared)
             .environmentObject(PreferencesManager.shared)
             .environmentObject(SubscriptionManager.shared)
+            .environmentObject(StripeService.shared)
     }
 }

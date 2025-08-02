@@ -39,7 +39,10 @@ struct PromptBindApp: App {
             .sheet(isPresented: $showingAccessibilityPermissionSheet) {
                 AccessibilityPermissionView()
             }
-            .onAppear(perform: setupApp) // Setup when window appears
+            .onAppear {
+                print("PromptBindApp: Main window appeared")
+                setupApp()
+            }
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 600)
@@ -49,11 +52,13 @@ struct PromptBindApp: App {
         MenuBarExtra("PromptBind", systemImage: "keyboard.fill") {
             VStack {
                 Button("Prompts") {
+                    print("MenuBar: Opening main window")
                     openWindow(id: "main")
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
                 
                 Button("Settings...") {
+                    print("MenuBar: Opening settings window")
                     openWindow(id: "settings")
                 }
                 .keyboardShortcut(",", modifiers: .command)
@@ -71,7 +76,9 @@ struct PromptBindApp: App {
             }
         }
         
-        // Dedicated Settings Window. Not opened at launch.
+        // TEMPORARILY DISABLE SETTINGS WINDOW TO TEST
+        // Commenting out the entire settings WindowGroup to see if something else is creating a settings window
+        /*
         WindowGroup(id: "settings") {
             SettingsView()
                 .environmentObject(cloudKitService)
@@ -79,10 +86,15 @@ struct PromptBindApp: App {
                 .environmentObject(preferencesManager)
                 .environmentObject(subscriptionManager)
                 .environmentObject(stripeService)
+                .onAppear {
+                    print("SettingsView: Settings window appeared - THIS SHOULD NOT HAPPEN")
+                }
         }
         .windowResizability(.contentSize)
         .windowToolbarStyle(.unified)
         .defaultSize(width: 600, height: 650)
+        */
+        
         .commands {
             // These commands are available when one of the windows is focused.
             CommandGroup(after: .importExport) {

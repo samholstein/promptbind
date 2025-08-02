@@ -152,9 +152,12 @@ struct ContentView: View {
         } detail: {
             detailView
         }
+        // TEMPORARILY COMMENTED OUT TOOLBAR TO TEST
+        /*
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: {
+                    print("ContentView: Settings button clicked - opening settings window")
                     openWindow(id: "settings")
                 }) {
                     Label("Settings", systemImage: "gear")
@@ -169,6 +172,7 @@ struct ContentView: View {
                 #endif
             }
         }
+        */
     }
     
     private var sidebarView: some View {

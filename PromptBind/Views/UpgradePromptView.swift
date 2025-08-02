@@ -3,6 +3,10 @@ import SwiftUI
 struct UpgradePromptView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
+    @EnvironmentObject private var stripeService: StripeService
+    
+    @State private var isCreatingCheckout = false
+    @State private var checkoutError: String?
     
     var body: some View {
         VStack(spacing: 24) {
@@ -82,6 +86,21 @@ struct UpgradePromptView: View {
                 .padding(.vertical, 12)
                 .background(Color(.controlBackgroundColor))
                 .cornerRadius(12)
+                
+                // Error message
+                if let error = checkoutError {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundColor(.red)
+                        Text(error)
+                            .font(.subheadline)
+                            .foregroundColor(.red)
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+                }
             }
             .padding(.horizontal, 20)
             
@@ -89,35 +108,60 @@ struct UpgradePromptView: View {
             
             // Action buttons
             VStack(spacing: 12) {
-                Button("Upgrade to Pro") {
-                    // TODO: Start subscription flow
-                    handleUpgradeAction()
+                Button(action: handleUpgradeAction) {
+                    if isCreatingCheckout {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Opening Checkout...")
+                        }
+                    } else {
+                        Text("Upgrade to Pro")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .disabled(isCreatingCheckout)
                 
                 Button("Maybe Later") {
                     dismiss()
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
+                .disabled(isCreatingCheckout)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
-        .frame(width: 400, height: 600)
+        .frame(width: 400, height: 650)
         .background(Color(.windowBackgroundColor))
     }
     
     private func handleUpgradeAction() {
-        print("UpgradePromptView: User wants to upgrade - TODO: Implement Stripe flow")
+        isCreatingCheckout = true
+        checkoutError = nil
         
-        // TODO: Phase 2 - Launch Stripe checkout
-        // For now, let's add a temporary Pro activation for testing
-        #if DEBUG
-        subscriptionManager.activateSubscription()
-        dismiss()
-        #endif
+        Task {
+            do {
+                print("UpgradePromptView: Creating Stripe checkout session...")
+                let checkoutResponse = try await stripeService.createCheckoutSession()
+                
+                // Open checkout URL in browser
+                await MainActor.run {
+                    stripeService.openCheckoutUrl(checkoutResponse.checkoutUrl)
+                    
+                    // Close the upgrade prompt since checkout is opening
+                    dismiss()
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isCreatingCheckout = false
+                    checkoutError = "Failed to start checkout: \(error.localizedDescription)"
+                    print("UpgradePromptView: Checkout error: \(error)")
+                }
+            }
+        }
     }
 }
 
@@ -150,5 +194,6 @@ struct UpgradePromptView_Previews: PreviewProvider {
     static var previews: some View {
         UpgradePromptView()
             .environmentObject(SubscriptionManager.shared)
+            .environmentObject(StripeService.shared)
     }
 }

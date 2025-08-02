@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 @MainActor
 class StripeService: ObservableObject {
@@ -7,9 +8,10 @@ class StripeService: ObservableObject {
     @Published var isLoading = false
     @Published var lastError: StripeError?
     
-    // TODO: Move to environment variables in production
-    private let publishableKey = "pk_test_..." // Will be set via environment
-    private let backendURL = "https://your-backend.vercel.app" // Will be configured
+    // Production configuration - will be moved to environment variables
+    private let productId = "prod_SnEGPJT55RGtL5" // Your actual Stripe product ID
+    private let publishableKey = "pk_test_..." // TODO: Set your publishable key
+    private let backendURL = "https://promptbind-backend.vercel.app" // TODO: Set your backend URL
     
     private init() {}
     
@@ -28,7 +30,7 @@ class StripeService: ObservableObject {
         
         let requestBody = CheckoutSessionRequest(
             deviceId: deviceID,
-            priceId: "price_1234567890", // TODO: Set actual price ID
+            productId: productId,
             successUrl: "promptbind://subscription/success",
             cancelUrl: "promptbind://subscription/cancel"
         )
@@ -93,6 +95,17 @@ class StripeService: ObservableObject {
         return response
     }
     
+    /// Opens Stripe Checkout in the default browser
+    func openCheckoutUrl(_ url: String) {
+        guard let checkoutUrl = URL(string: url) else {
+            print("StripeService: Invalid checkout URL: \(url)")
+            return
+        }
+        
+        print("StripeService: Opening checkout URL in browser")
+        NSWorkspace.shared.open(checkoutUrl)
+    }
+    
     // MARK: - Generic HTTP Helper
     
     private func makeRequest<T: Codable, U: Codable>(
@@ -151,7 +164,7 @@ class StripeService: ObservableObject {
 
 struct CheckoutSessionRequest: Codable {
     let deviceId: String
-    let priceId: String
+    let productId: String // Changed from priceId to productId
     let successUrl: String
     let cancelUrl: String
 }
