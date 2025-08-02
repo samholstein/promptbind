@@ -216,6 +216,12 @@ struct ContentView: View {
                     Text("Can Create: \(subscriptionManager.canCreatePrompt() ? "Yes" : "No")")
                         .font(.caption)
                         .foregroundColor(subscriptionManager.canCreatePrompt() ? .green : .red)
+                    Text("At Limit: \(subscriptionManager.isAtFreeLimit() ? "Yes" : "No")")
+                        .font(.caption)
+                        .foregroundColor(subscriptionManager.isAtFreeLimit() ? .red : .green)
+                    Text("Logic: \(subscriptionManager.promptCount) < 5 = \(subscriptionManager.promptCount < 5)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding(8)
                 .background(Color.secondary.opacity(0.1))

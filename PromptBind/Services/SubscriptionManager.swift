@@ -78,8 +78,9 @@ class SubscriptionManager: ObservableObject {
         let result: Bool
         switch subscriptionStatus {
         case .free:
+            // FIX: Changed from < to <= - user cannot create if they already have 5 or more
             result = promptCount < maxFreePrompts
-            print("SubscriptionManager: Can create prompt (free): \(result) (\(promptCount)/\(maxFreePrompts))")
+            print("SubscriptionManager: Can create prompt (free): \(result) (\(promptCount) < \(maxFreePrompts))")
         case .trialing(let expiresAt):
             result = expiresAt > Date()
             print("SubscriptionManager: Can create prompt (trial): \(result)")
@@ -97,7 +98,7 @@ class SubscriptionManager: ObservableObject {
     func isAtFreeLimit() -> Bool {
         guard case .free = subscriptionStatus else { return false }
         let atLimit = promptCount >= maxFreePrompts
-        print("SubscriptionManager: Is at free limit: \(atLimit) (\(promptCount)/\(maxFreePrompts))")
+        print("SubscriptionManager: Is at free limit: \(atLimit) (\(promptCount) >= \(maxFreePrompts))")
         return atLimit
     }
     
