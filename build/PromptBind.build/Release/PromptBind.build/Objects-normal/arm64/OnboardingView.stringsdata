@@ -1,0 +1,40 @@
+{
+  "source": "/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/OnboardingView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Welcome to PromptBind",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 11
+        }
+      },
+      {
+        "comment": "",
+        "key": "Back",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 45
+        }
+      },
+      {
+        "comment": "",
+        "key": "Next",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 55
+        }
+      },
+      {
+        "comment": "",
+        "key": "Get Started",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 61
+        }
+      }
+    ]
+  },
+  "version": 1
+}

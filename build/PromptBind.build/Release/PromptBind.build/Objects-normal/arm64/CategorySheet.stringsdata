@@ -1,0 +1,56 @@
+{
+  "source": "/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/CategorySheet.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Category Name",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 51
+        }
+      },
+      {
+        "comment": "",
+        "key": "e.g., Work, Personal",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 53
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 77
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 80
+        }
+      },
+      {
+        "comment": "",
+        "key": "Save",
+        "location": {
+          "startingColumn": 37,
+          "startingLine": 81
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 81
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,96 @@
+{
+  "source": "/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/SearchablePromptsView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Search Prompts",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 116
+        }
+      },
+      {
+        "comment": "",
+        "key": "Search prompts...",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 43
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clear",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 47
+        }
+      },
+      {
+        "comment": "",
+        "key": "No prompts yet",
+        "location": {
+          "startingColumn": 47,
+          "startingLine": 65
+        }
+      },
+      {
+        "comment": "",
+        "key": "No results found",
+        "location": {
+          "startingColumn": 66,
+          "startingLine": 65
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create your first prompt to get started",
+        "location": {
+          "startingColumn": 47,
+          "startingLine": 69
+        }
+      },
+      {
+        "comment": "",
+        "key": "Try a different search term",
+        "location": {
+          "startingColumn": 91,
+          "startingLine": 69
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Prompt",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 74
+        }
+      },
+      {
+        "comment": "",
+        "key": "Active",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 100
+        }
+      },
+      {
+        "comment": "",
+        "key": "Disabled",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 104
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Prompt",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 119
+        }
+      }
+    ]
+  },
+  "version": 1
+}

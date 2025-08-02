@@ -84,7 +84,6 @@ struct ContentView: View {
             .onAppear(perform: setupView)
             .onChange(of: selectedItem, handleSelectionChange)
             .onChange(of: allPrompts.count) { oldCount, newCount in
-                print("ContentView: Prompt count changed from \(oldCount) to \(newCount)")
                 subscriptionManager.updatePromptCount(newCount)
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave), perform: handleContextSave)
@@ -152,27 +151,16 @@ struct ContentView: View {
         } detail: {
             detailView
         }
-        // TEMPORARILY COMMENTED OUT TOOLBAR TO TEST
-        /*
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: {
-                    print("ContentView: Settings button clicked - opening settings window")
                     openWindow(id: "settings")
                 }) {
                     Label("Settings", systemImage: "gear")
                 }
                 .help("Settings")
-                
-                #if DEBUG
-                Button("Debug: Refresh Count") {
-                    subscriptionManager.refreshPromptCount()
-                }
-                .help("Refresh subscription count")
-                #endif
             }
         }
-        */
     }
     
     private var sidebarView: some View {
@@ -206,36 +194,6 @@ struct ContentView: View {
                     .font(.subheadline).fontWeight(.semibold).foregroundColor(.secondary).textCase(.uppercase)
                     .padding(.horizontal, 8).padding(.top, 16).padding(.bottom, 4)
             }
-            
-            #if DEBUG
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Debug Info:")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                    Text("Status: \(subscriptionManager.subscriptionStatus.displayName)")
-                        .font(.caption)
-                    Text("Count: \(subscriptionManager.promptCount)")
-                        .font(.caption)
-                    Text("Can Create: \(subscriptionManager.canCreatePrompt() ? "Yes" : "No")")
-                        .font(.caption)
-                        .foregroundColor(subscriptionManager.canCreatePrompt() ? .green : .red)
-                    Text("At Limit: \(subscriptionManager.isAtFreeLimit() ? "Yes" : "No")")
-                        .font(.caption)
-                        .foregroundColor(subscriptionManager.isAtFreeLimit() ? .red : .green)
-                    Text("Logic: \(subscriptionManager.promptCount) < 5 = \(subscriptionManager.promptCount < 5)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(8)
-            } header: {
-                Text("Subscription Debug")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            #endif
         }
         .listStyle(.sidebar)
         .navigationTitle("PromptBind")
@@ -306,7 +264,6 @@ struct ContentView: View {
     
     private func handleSelectionChange(from oldValue: SidebarSelection, to newValue: SidebarSelection) {
         saveSelectedItem(newValue)
-        print("ContentView: Selection changed to \(newValue)")
     }
     
     private func handleContextSave(_ notification: Notification) {
@@ -345,7 +302,6 @@ struct ContentView: View {
     
     private func validateCurrentSelection() {
         if case .category(let objectID) = selectedItem, !categories.contains(where: { $0.objectID == objectID }) {
-            print("ContentView: Selected category no longer exists, switching to All Prompts")
             selectedItem = .allPrompts
         }
     }

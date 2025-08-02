@@ -102,6 +102,7 @@ struct UpdatesSettingsView: View {
 struct CloudSettingsView: View {
     @EnvironmentObject private var cloudKitService: CloudKitService
     @EnvironmentObject private var coreDataStack: CoreDataStack
+    @EnvironmentObject private var iCloudSyncStatusProvider: ICloudSyncStatusProvider
     @State private var showingCloudKitHelp = false
     
     var body: some View {
@@ -117,14 +118,8 @@ struct CloudSettingsView: View {
                 .font(.caption)
             }
             
-            iCloudSyncStatusView(
-                status: coreDataStack.syncStatus,
-                lastSyncDate: coreDataStack.lastSyncDate,
-                lastSyncError: coreDataStack.lastSyncError,
-                onSyncNow: {
-                    coreDataStack.triggerCloudKitSync()
-                }
-            )
+            NewiCloudSyncStatusView()
+                .environmentObject(iCloudSyncStatusProvider)
             
             Spacer()
         }

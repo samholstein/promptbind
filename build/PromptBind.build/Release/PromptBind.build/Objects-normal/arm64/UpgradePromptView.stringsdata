@@ -1,0 +1,88 @@
+{
+  "source": "/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/UpgradePromptView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Upgrade to PromptBind Pro",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 34
+        }
+      },
+      {
+        "comment": "",
+        "key": "You've reached the 5-prompt limit for free accounts",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 40
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel anytime",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 65
+        }
+      },
+      {
+        "comment": "",
+        "key": "$4.99",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 57
+        }
+      },
+      {
+        "comment": "",
+        "key": "/month",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 60
+        }
+      },
+      {
+        "comment": "",
+        "key": "Current Usage:",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 73
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld/5 prompts",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 77
+        }
+      },
+      {
+        "comment": "",
+        "key": "Maybe Later",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 126
+        }
+      },
+      {
+        "comment": "",
+        "key": "Upgrade to Pro",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 119
+        }
+      },
+      {
+        "comment": "",
+        "key": "Opening Checkout...",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 116
+        }
+      }
+    ]
+  },
+  "version": 1
+}
