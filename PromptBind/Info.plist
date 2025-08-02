@@ -15,9 +15,9 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIconName</key>
@@ -27,7 +27,11 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string></string>
+    <string>© 2024 Sam Holstein. All rights reserved.</string>
+    
+    <!-- Accessibility permission descriptions -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>PromptBind needs to send Apple Events to paste expanded text in other applications.</string>
     
     <!-- URL Scheme Registration for Stripe Checkout -->
     <key>CFBundleURLTypes</key>
@@ -42,16 +46,20 @@
         </dict>
     </array>
     
-    <!-- Sparkle Configuration -->
+    <!-- Sparkle Configuration for Distribution -->
     <key>SUFeedURL</key>
-    <string>https://github.com/samholstein/promptbind/releases.atom</string>
+    <string>https://releases.promptbind.app/appcast.xml</string>
     <key>SUPublicEDKey</key>
-    <string>hLIYXExd3YZDY7kXxhUrScMuS4IdJkyysLjRKDHRihM=</string>
+    <string>REPLACE_WITH_YOUR_GENERATED_PUBLIC_KEY</string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUScheduledCheckInterval</key>
     <integer>86400</integer>
     <key>SUAllowsAutomaticUpdates</key>
+    <true/>
+    <key>SUEnableSystemProfiling</key>
+    <false/>
+    <key>SUShowReleaseNotes</key>
     <true/>
 </dict>
 </plist>

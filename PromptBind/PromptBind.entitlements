@@ -2,10 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Core functionality: Accessibility permissions for global keyboard monitoring -->
     <key>com.apple.security.accessibility-events</key>
     <true/>
+    
+    <!-- Apple Events for text insertion and automation -->
     <key>com.apple.security.automation.apple-events</key>
     <true/>
+    
+    <!-- CloudKit container for data sync -->
     <key>com.apple.developer.icloud-container-identifiers</key>
     <array>
         <string>iCloud.samholstein.PromptBind</string>
@@ -14,5 +19,13 @@
     <array>
         <string>CloudKit</string>
     </array>
+    
+    <!-- Network access for Stripe and updates -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    
+    <!-- Required for direct distribution with Developer ID -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
 </dict>
 </plist>

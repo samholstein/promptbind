@@ -55,6 +55,7 @@ struct ContentView: View {
     @State private var editingCategory: NSManagedObject?
     @State private var showingOnboarding = false
     @State private var showingUpgradePrompt = false
+    @State private var showingAccessibilityPermission = false
     
     @StateObject private var importExportService: DataExportImportService
     
@@ -124,6 +125,20 @@ struct ContentView: View {
                     // This completion block is called when the user finishes onboarding.
                     preferencesManager.hasCompletedOnboarding = true
                     showingOnboarding = false
+                    
+                    // After onboarding, check for accessibility permissions
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        checkAndRequestAccessibilityPermissions()
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAccessibilityPermission) {
+                AccessibilityPermissionView {
+                    showingAccessibilityPermission = false
+                    // Check again after user potentially granted permissions
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        checkAndRequestAccessibilityPermissions()
+                    }
                 }
             }
             .sheet(isPresented: $showingUpgradePrompt) {
@@ -256,6 +271,14 @@ struct ContentView: View {
         
         restoreSelectedItem()
         
+        // Start keyboard monitoring if accessibility permissions are granted
+        if AXIsProcessTrusted() {
+            print("ContentView: Accessibility permissions granted, starting monitoring")
+            triggerMonitor?.startMonitoring()
+        } else {
+            print("ContentView: Accessibility permissions not granted")
+        }
+        
         // Ensure subscription manager has correct count after view appears
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             subscriptionManager.refreshPromptCount()
@@ -328,6 +351,18 @@ struct ContentView: View {
             if let currentIndex = categories.firstIndex(where: { $0.objectID == objectID }), currentIndex < categories.count - 1 {
                 selectedItem = .category(categories[currentIndex + 1].objectID)
             }
+        }
+    }
+    
+    // MARK: - Accessibility Permission Handling
+    
+    private func checkAndRequestAccessibilityPermissions() {
+        if AXIsProcessTrusted() {
+            print("ContentView: Accessibility permissions granted, starting monitoring")
+            triggerMonitor?.startMonitoring()
+        } else {
+            print("ContentView: Accessibility permissions not granted, showing permission view")
+            showingAccessibilityPermission = true
         }
     }
 }
