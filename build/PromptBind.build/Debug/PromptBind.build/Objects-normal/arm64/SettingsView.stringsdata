@@ -1,0 +1,408 @@
+{
+  "source": "/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/SettingsView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "iCloud Sync Help",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 348
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clear Account Data",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 353
+        }
+      },
+      {
+        "comment": "",
+        "key": "Final Confirmation",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 361
+        }
+      },
+      {
+        "comment": "",
+        "key": "Subscription",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 35
+        }
+      },
+      {
+        "comment": "",
+        "key": "Upgrade to Pro",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 87
+        }
+      },
+      {
+        "comment": "",
+        "key": "Status:",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 41
+        }
+      },
+      {
+        "comment": "",
+        "key": "(synced %@)",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 50
+        }
+      },
+      {
+        "comment": "",
+        "key": "Prompts:",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 57
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unlimited",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 60
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld/5",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 64
+        }
+      },
+      {
+        "comment": "",
+        "key": "Refresh Status",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 105
+        }
+      },
+      {
+        "comment": "",
+        "key": "Refreshing...",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 102
+        }
+      },
+      {
+        "comment": "",
+        "key": "Debug Controls",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 116
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reset to Free",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 122
+        }
+      },
+      {
+        "comment": "",
+        "key": "Activate Pro",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 127
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clear Device ID",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 132
+        }
+      },
+      {
+        "comment": "",
+        "key": "Run All Tests",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 139
+        }
+      },
+      {
+        "comment": "",
+        "key": "Check Stripe Status",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 147
+        }
+      },
+      {
+        "comment": "",
+        "key": "Test Results:",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 168
+        }
+      },
+      {
+        "comment": "",
+        "key": "✅",
+        "location": {
+          "startingColumn": 62,
+          "startingLine": 176
+        }
+      },
+      {
+        "comment": "",
+        "key": "❌",
+        "location": {
+          "startingColumn": 70,
+          "startingLine": 176
+        }
+      },
+      {
+        "comment": "",
+        "key": "General",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 194
+        }
+      },
+      {
+        "comment": "",
+        "key": "Launch at startup",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 198
+        }
+      },
+      {
+        "comment": "",
+        "key": "Updates",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 209
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 223
+        }
+      },
+      {
+        "comment": "",
+        "key": "Automatically check for updates",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 214
+        }
+      },
+      {
+        "comment": "",
+        "key": "PromptBind will check for updates in the background",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 216
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 242
+        }
+      },
+      {
+        "comment": "",
+        "key": "Automatically download updates",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 233
+        }
+      },
+      {
+        "comment": "",
+        "key": "Updates will download and install automatically",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 235
+        }
+      },
+      {
+        "comment": "",
+        "key": "Check for Updates Now",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 252
+        }
+      },
+      {
+        "comment": "",
+        "key": "iCloud Sync",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 266
+        }
+      },
+      {
+        "comment": "",
+        "key": "Help",
+        "location": {
+          "startingColumn": 32,
+          "startingLine": 269
+        }
+      },
+      {
+        "comment": "",
+        "key": "Data Management",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 291
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clear Data...",
+        "location": {
+          "startingColumn": 36,
+          "startingLine": 306
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clear Account Data",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 297
+        }
+      },
+      {
+        "comment": "",
+        "key": "Remove all prompts and categories from this device and iCloud",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 299
+        }
+      },
+      {
+        "comment": "",
+        "key": "Clearing data...",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 318
+        }
+      },
+      {
+        "comment": "",
+        "key": "OK",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 349
+        }
+      },
+      {
+        "comment": "",
+        "key": "To enable iCloud sync:\n\n1. Open System Preferences\n2. Go to Apple ID\n3. Ensure iCloud Drive is enabled\n4. Sign in with your Apple ID\n\nOnce enabled, your prompts will automatically sync across all your Mac devices.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 351
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 354
+        }
+      },
+      {
+        "comment": "",
+        "key": "Continue",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 355
+        }
+      },
+      {
+        "comment": "",
+        "key": "⚠️ This will permanently delete ALL your prompts and categories from this device and iCloud.\n\nThis action cannot be undone and will affect all devices signed into your iCloud account.\n\nAre you sure you want to continue?",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 359
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 362
+        }
+      },
+      {
+        "comment": "",
+        "key": "Delete Everything",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 363
+        }
+      },
+      {
+        "comment": "",
+        "key": "This is your final warning.\n\nType 'DELETE' to confirm you want to permanently erase all your PromptBind data from this device and iCloud.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 367
+        }
+      },
+      {
+        "comment": "",
+        "key": "Sync Now",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 486
+        }
+      },
+      {
+        "comment": "",
+        "key": "Last sync: %@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 470
+        }
+      },
+      {
+        "comment": "",
+        "key": "Checking for updates...",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 474
+        }
+      },
+      {
+        "comment": "",
+        "key": "Changes will sync automatically",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 478
+        }
+      }
+    ]
+  },
+  "version": 1
+}

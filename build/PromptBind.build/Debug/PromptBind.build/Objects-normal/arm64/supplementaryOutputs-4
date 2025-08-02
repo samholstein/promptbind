@@ -1,0 +1,18 @@
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Services/CoreDataStack.swift":
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CoreDataStack.dia"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CoreDataStack.d"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CoreDataStack.swiftdeps"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CoreDataStack.swiftconstvalues"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CoreDataStack.o"
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Managers/NotificationManager.swift":
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/NotificationManager.d"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/NotificationManager.swiftdeps"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/NotificationManager.o"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/NotificationManager.swiftconstvalues"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/NotificationManager.dia"
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/AddPromptSheet.swift":
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/AddPromptSheet.swiftconstvalues"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/AddPromptSheet.d"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/AddPromptSheet.swiftdeps"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/AddPromptSheet.dia"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/AddPromptSheet.o"

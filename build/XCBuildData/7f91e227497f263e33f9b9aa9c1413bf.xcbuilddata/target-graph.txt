@@ -1,0 +1,4 @@
+Target dependency graph (2 targets)
+Target 'PromptBind' in project 'PromptBind'
+➜ Explicit dependency on target 'Sparkle' in project 'Sparkle'
+Target 'Sparkle' in project 'Sparkle' (no dependencies)

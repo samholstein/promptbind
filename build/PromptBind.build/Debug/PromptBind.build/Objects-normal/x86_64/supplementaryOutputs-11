@@ -1,0 +1,18 @@
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/PromptBindApp.swift":
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/PromptBindApp.dia"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/PromptBindApp.swiftconstvalues"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/PromptBindApp.d"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/PromptBindApp.o"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/PromptBindApp.swiftdeps"
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/TabbedSettingsView.swift":
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TabbedSettingsView.dia"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TabbedSettingsView.d"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TabbedSettingsView.swiftdeps"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TabbedSettingsView.swiftconstvalues"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TabbedSettingsView.o"
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/ContentView.swift":
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/ContentView.swiftdeps"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/ContentView.d"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/ContentView.dia"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/ContentView.o"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/ContentView.swiftconstvalues"

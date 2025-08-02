@@ -1,0 +1,176 @@
+{
+  "source": "/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/ContentView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Import/Export Status",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 133
+        }
+      },
+      {
+        "comment": "",
+        "key": "OK",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 134
+        }
+      },
+      {
+        "comment": "",
+        "key": "PromptBind",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 241
+        }
+      },
+      {
+        "comment": "",
+        "key": "Categories",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 205
+        }
+      },
+      {
+        "comment": "",
+        "key": "Debug Info:",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 213
+        }
+      },
+      {
+        "comment": "",
+        "key": "Status: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 216
+        }
+      },
+      {
+        "comment": "",
+        "key": "Count: %lld",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 218
+        }
+      },
+      {
+        "comment": "",
+        "key": "Can Create: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 220
+        }
+      },
+      {
+        "comment": "",
+        "key": "At Limit: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 223
+        }
+      },
+      {
+        "comment": "",
+        "key": "Subscription Debug",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 234
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Category",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 252
+        }
+      },
+      {
+        "comment": "",
+        "key": "Disabled",
+        "location": {
+          "startingColumn": 114,
+          "startingLine": 551
+        }
+      },
+      {
+        "comment": "",
+        "key": "Edit prompt",
+        "location": {
+          "startingColumn": 43,
+          "startingLine": 556
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 576
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 603
+        }
+      },
+      {
+        "comment": "",
+        "key": "Edit category",
+        "location": {
+          "startingColumn": 43,
+          "startingLine": 601
+        }
+      },
+      {
+        "comment": "",
+        "key": "View All Prompts",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 622
+        }
+      },
+      {
+        "comment": "",
+        "key": "Category Not Found",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 619
+        }
+      },
+      {
+        "comment": "",
+        "key": "The selected category might have been deleted.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 620
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld prompt%@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 646
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add prompt",
+        "location": {
+          "startingColumn": 43,
+          "startingLine": 644
+        }
+      }
+    ]
+  },
+  "version": 1
+}

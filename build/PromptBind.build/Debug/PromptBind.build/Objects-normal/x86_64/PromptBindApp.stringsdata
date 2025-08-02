@@ -1,0 +1,64 @@
+{
+  "source": "/Users/samholstein/Documents/Dev/PromptBind/PromptBind/PromptBindApp.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "PromptBind",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 55
+        }
+      },
+      {
+        "comment": "",
+        "key": "Prompts",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 57
+        }
+      },
+      {
+        "comment": "",
+        "key": "Settings...",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 63
+        }
+      },
+      {
+        "comment": "",
+        "key": "Check for Updates...",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 71
+        }
+      },
+      {
+        "comment": "",
+        "key": "Quit PromptBind...",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 75
+        }
+      },
+      {
+        "comment": "",
+        "key": "Export Data...",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 104
+        }
+      },
+      {
+        "comment": "",
+        "key": "Import Data...",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 109
+        }
+      }
+    ]
+  },
+  "version": 1
+}

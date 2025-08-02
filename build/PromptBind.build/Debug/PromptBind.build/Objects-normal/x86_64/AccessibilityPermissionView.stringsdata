@@ -1,0 +1,40 @@
+{
+  "source": "/Users/samholstein/Documents/Dev/PromptBind/PromptBind/AccessibilityPermissionView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Accessibility Access Required",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 14
+        }
+      },
+      {
+        "comment": "",
+        "key": "PromptBind needs Accessibility permissions to monitor your keystrokes for trigger phrases and perform text replacements system-wide.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 18
+        }
+      },
+      {
+        "comment": "",
+        "key": "Please grant access in:\nSystem Settings → Privacy & Security → Accessibility.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 23
+        }
+      },
+      {
+        "comment": "",
+        "key": "Open System Settings",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 27
+        }
+      }
+    ]
+  },
+  "version": 1
+}

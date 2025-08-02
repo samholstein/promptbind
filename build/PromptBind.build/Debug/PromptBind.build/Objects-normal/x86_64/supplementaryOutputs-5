@@ -1,0 +1,18 @@
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Models/Subscription+Extensions.swift":
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/Subscription+Extensions.o"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/Subscription+Extensions.swiftdeps"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/Subscription+Extensions.d"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/Subscription+Extensions.swiftconstvalues"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/Subscription+Extensions.dia"
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Services/TriggerMonitorService.swift":
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TriggerMonitorService.d"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TriggerMonitorService.swiftconstvalues"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TriggerMonitorService.o"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TriggerMonitorService.dia"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/TriggerMonitorService.swiftdeps"
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/SearchablePromptsView.swift":
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/SearchablePromptsView.d"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/SearchablePromptsView.dia"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/SearchablePromptsView.o"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/SearchablePromptsView.swiftdeps"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/x86_64/SearchablePromptsView.swiftconstvalues"

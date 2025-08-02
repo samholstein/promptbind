@@ -1,0 +1,18 @@
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Services/DataExportImportService.swift":
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/DataExportImportService.o"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/DataExportImportService.swiftdeps"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/DataExportImportService.swiftconstvalues"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/DataExportImportService.d"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/DataExportImportService.dia"
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Views/CategorySheet.swift":
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CategorySheet.swiftdeps"
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CategorySheet.swiftconstvalues"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CategorySheet.dia"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CategorySheet.o"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/CategorySheet.d"
+"/Users/samholstein/Documents/Dev/PromptBind/PromptBind/Managers/PreferencesManager.swift":
+  const-values: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/PreferencesManager.swiftconstvalues"
+  dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/PreferencesManager.d"
+  swift-dependencies: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/PreferencesManager.swiftdeps"
+  diagnostics: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/PreferencesManager.dia"
+  object: "/Users/samholstein/Documents/Dev/PromptBind/build/PromptBind.build/Debug/PromptBind.build/Objects-normal/arm64/PreferencesManager.o"
