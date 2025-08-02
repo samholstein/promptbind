@@ -198,7 +198,7 @@ struct PromptBindApp: App {
               let queryItems = components.queryItems,
               let sessionId = queryItems.first(where: { $0.name == "session_id" })?.value else {
             print("PromptBindApp: No session_id found in success URL")
-            showSubscriptionError("Payment completed but could not verify subscription. Please contact support.")
+            showSubscriptionError("Payment completed but could not verify subscription. Please contact support if this persists.")
             return
         }
         
@@ -228,13 +228,14 @@ struct PromptBindApp: App {
                 )
                 
                 // Update subscription manager
-                subscriptionManager.activateSubscription(expiresAt: subscriptionData.expiresAt)
+                subscriptionManager.updateFromStripeData(subscriptionData)
                 
-                showSubscriptionSuccess("Welcome to PromptBind Pro! Your subscription is now active.")
+                // Show success with retry option
+                showSubscriptionSuccessWithDetails(subscriptionData)
                 
             } catch {
                 print("PromptBindApp: Error verifying subscription: \(error)")
-                showSubscriptionError("Payment completed but verification failed: \(error.localizedDescription)")
+                showSubscriptionErrorWithRetry(sessionId, error)
             }
         }
     }
@@ -244,7 +245,51 @@ struct PromptBindApp: App {
         showSubscriptionInfo("Subscription upgrade was cancelled. You can try again anytime!")
     }
     
-    // MARK: - User Notifications
+    // MARK: - Enhanced User Notifications
+    
+    private func showSubscriptionSuccessWithDetails(_ subscriptionData: SubscriptionData) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Welcome to PromptBind Pro!"
+            
+            let statusMessage = subscriptionData.status.lowercased() == "trialing" ? 
+                "Your 30-day free trial is now active. You have unlimited access to all Pro features." :
+                "Your subscription is now active. You have unlimited access to all Pro features."
+                
+            alert.informativeText = statusMessage + "\n\nYour subscription will automatically sync to your other devices signed into the same iCloud account."
+            alert.alertStyle = .informational
+            alert.icon = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Success")
+            alert.addButton(withTitle: "Get Started")
+            alert.runModal()
+        }
+    }
+    
+    private func showSubscriptionErrorWithRetry(_ sessionId: String, _ error: Error) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Subscription Verification Issue"
+            alert.informativeText = "Your payment was processed successfully, but we're having trouble verifying your subscription.\n\nError: \(error.localizedDescription)\n\nThis usually resolves automatically within a few minutes. You can also try refreshing your subscription status in Settings."
+            alert.alertStyle = .warning
+            alert.icon = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Warning")
+            alert.addButton(withTitle: "Retry Now")
+            alert.addButton(withTitle: "Check Later")
+            
+            let response = alert.runModal()
+            
+            if response == .alertFirstButtonReturn {
+                // Retry verification
+                Task { @MainActor in
+                    do {
+                        let subscriptionData = try await self.stripeService.verifyCheckoutSession(sessionId)
+                        self.subscriptionManager.updateFromStripeData(subscriptionData)
+                        self.showSubscriptionSuccessWithDetails(subscriptionData)
+                    } catch {
+                        self.showSubscriptionError("Retry failed: \(error.localizedDescription). Please check Settings → Subscription → Refresh Status in a few minutes.")
+                    }
+                }
+            }
+        }
+    }
     
     private func showSubscriptionSuccess(_ message: String) {
         DispatchQueue.main.async {

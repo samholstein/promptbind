@@ -15,6 +15,10 @@ struct SettingsView: View {
     @State private var clearDataError: String?
     @State private var showingUpgradePrompt = false
     
+    #if DEBUG
+    @StateObject private var testingService = SubscriptionTestingService.shared
+    #endif
+    
     // Safer Sparkle updater access
     private var updater: SPUUpdater? {
         guard let appDelegate = NSApplication.shared.delegate as? AppDelegate else {
@@ -40,6 +44,13 @@ struct SettingsView: View {
                                     .font(.body)
                                     .fontWeight(.medium)
                                     .foregroundColor(subscriptionStatusColor)
+                                
+                                // Add sync status indicator
+                                if let lastSyncDate = subscriptionManager.lastSyncDate {
+                                    Text("(synced \(lastSyncDate.formatted(.relative(presentation: .named))))")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                             
                             HStack {
@@ -55,6 +66,19 @@ struct SettingsView: View {
                                         .foregroundColor(subscriptionManager.promptCount >= 5 ? .red : .primary)
                                 }
                             }
+                            
+                            // Add error display
+                            if let error = subscriptionManager.lastError {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .foregroundColor(.orange)
+                                        .font(.caption)
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                        .lineLimit(2)
+                                }
+                            }
                         }
                         
                         Spacer()
@@ -64,6 +88,25 @@ struct SettingsView: View {
                                 showingUpgradePrompt = true
                             }
                             .buttonStyle(.borderedProminent)
+                        } else {
+                            // Add refresh button for Pro users
+                            Button {
+                                Task {
+                                    await subscriptionManager.refreshSubscriptionStatus()
+                                }
+                            } label: {
+                                if subscriptionManager.isCheckingStripeStatus {
+                                    HStack(spacing: 4) {
+                                        ProgressView()
+                                            .scaleEffect(0.7)
+                                        Text("Refreshing...")
+                                    }
+                                } else {
+                                    Text("Refresh Status")
+                                }
+                            }
+                            .controlSize(.small)
+                            .disabled(subscriptionManager.isCheckingStripeStatus)
                         }
                     }
                     
@@ -92,9 +135,52 @@ struct SettingsView: View {
                             .controlSize(.small)
                         }
                         
+                        HStack {
+                            Button("Run All Tests") {
+                                Task {
+                                    await SubscriptionTestingService.shared.runAllTests()
+                                }
+                            }
+                            .controlSize(.small)
+                            .disabled(SubscriptionTestingService.shared.isRunningTests)
+                            
+                            Button("Check Stripe Status") {
+                                Task {
+                                    await subscriptionManager.checkSubscriptionStatusFromStripe()
+                                }
+                            }
+                            .controlSize(.small)
+                            .disabled(subscriptionManager.isCheckingStripeStatus)
+                            
+                            if SubscriptionTestingService.shared.isRunningTests {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                        }
+                        
                         Text("Device ID: \(DeviceIdentificationService.shared.getDeviceID().prefix(8))...")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            
+                        // Show test results
+                        if !SubscriptionTestingService.shared.testResults.isEmpty {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Test Results:")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.secondary)
+                                
+                                ForEach(SubscriptionTestingService.shared.testResults.indices, id: \.self) { index in
+                                    let result = SubscriptionTestingService.shared.testResults[index]
+                                    HStack {
+                                        Text(result.passed ? "✅" : "❌")
+                                        Text(result.name)
+                                            .font(.caption)
+                                        Spacer()
+                                    }
+                                }
+                            }
+                        }
                     }
                     #endif
                 }

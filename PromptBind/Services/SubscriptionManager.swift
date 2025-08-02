@@ -235,6 +235,11 @@ class SubscriptionManager: ObservableObject {
             if let subscriptionData = try await StripeService.shared.checkDeviceSubscriptionStatus() {
                 print("SubscriptionManager: Retrieved subscription status from Stripe: \(subscriptionData.status)")
                 
+                // Phase 6: Additional validation
+                if let customerId = subscriptionData.customerId, customerId.isEmpty {
+                    print("⚠️ WARNING: Empty customer ID from Stripe")
+                }
+                
                 // Update local status with Stripe data
                 updateFromStripeData(subscriptionData)
                 
@@ -255,15 +260,24 @@ class SubscriptionManager: ObservableObject {
                     )
                 }
                 
-                print("SubscriptionManager: Successfully updated subscription from Stripe")
+                print("✅ Successfully updated subscription from Stripe")
                 
             } else {
                 print("SubscriptionManager: No subscription found in Stripe for this device")
+                // This is not necessarily an error - user might be on free plan
             }
             
         } catch {
-            print("SubscriptionManager: Error checking Stripe subscription status: \(error)")
-            lastError = "Failed to check subscription status: \(error.localizedDescription)"
+            print("❌ SubscriptionManager: Error checking Stripe subscription status: \(error)")
+            
+            // Phase 7: Improved error messages
+            if error.localizedDescription.contains("network") {
+                lastError = "Unable to check subscription status. Please check your internet connection."
+            } else if error.localizedDescription.contains("unauthorized") {
+                lastError = "Subscription verification failed. Please try upgrading again."
+            } else {
+                lastError = "Failed to check subscription status: \(error.localizedDescription)"
+            }
         }
     }
     
@@ -302,6 +316,16 @@ class SubscriptionManager: ObservableObject {
         case .free:
             result = promptCount < maxFreePrompts
             print("SubscriptionManager: Can create prompt (free): \(result) (\(promptCount) < \(maxFreePrompts))")
+            
+            // Phase 6: Validation check
+            if promptCount < 0 {
+                print("⚠️ WARNING: Negative prompt count detected: \(promptCount)")
+                lastError = "Invalid prompt count detected. Please refresh."
+            }
+            if promptCount > 1000 {
+                print("⚠️ WARNING: Suspiciously high prompt count: \(promptCount)")
+            }
+            
         case .subscribed:
             result = true
             print("SubscriptionManager: Can create prompt (subscribed): true")
@@ -309,6 +333,10 @@ class SubscriptionManager: ObservableObject {
             result = false
             print("SubscriptionManager: Can create prompt (expired): false")
         }
+        
+        // Phase 6: Log for testing
+        print("📊 Subscription Check - Status: \(subscriptionStatus.displayName), Count: \(promptCount), Can Create: \(result)")
+        
         return result
     }
     
@@ -341,6 +369,13 @@ class SubscriptionManager: ObservableObject {
         
         print("SubscriptionManager: Updating from Stripe data - Status: \(stripeData.status)")
         
+        // Phase 6: Validate Stripe data
+        guard !stripeData.status.isEmpty else {
+            print("⚠️ WARNING: Empty Stripe status received")
+            lastError = "Invalid subscription data received from Stripe"
+            return
+        }
+        
         switch stripeData.status.lowercased() {
         case "active", "trialing":
             // Both active and trialing subscriptions get Pro access
@@ -355,10 +390,14 @@ class SubscriptionManager: ObservableObject {
             print("SubscriptionManager: Set to free (Stripe status: \(stripeData.status))")
         }
         
-        // Only save if status actually changed
+        // Phase 6: Log status changes
         if previousStatus != subscriptionStatus {
+            print("🔄 STATUS CHANGE: \(previousStatus.displayName) → \(subscriptionStatus.displayName)")
             saveSubscriptionState() // Quick save to UserDefaults
             saveSubscriptionToCoreData() // Save to Core Data (CloudKit sync)
+            
+            // Clear any previous errors on successful status change
+            lastError = nil
         }
     }
     
