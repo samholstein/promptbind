@@ -1,0 +1,34 @@
+<?xml version="2.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>PromptBind Updates</title>
+        <link>https://github.com/samholstein/promptbind</link>
+        <description>Most recent changes with links to updates for PromptBind.</description>
+        <language>en</language>
+        
+        <!-- Replace this item with your actual release information -->
+        <item>
+            <title>Version 1.0.0</title>
+            <description><![CDATA[
+                <h2>PromptBind 1.0.0</h2>
+                <ul>
+                    <li>Initial release of PromptBind</li>
+                    <li>Text expansion with custom triggers</li>
+                    <li>CloudKit sync across devices</li>
+                    <li>Category organization</li>
+                    <li>Pro subscription with unlimited prompts</li>
+                    <li>Automatic updates via Sparkle</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 06 Jan 2025 10:00:00 +0000</pubDate>
+            <enclosure 
+                url="https://github.com/samholstein/promptbind/releases/download/v1.0.0/PromptBind.dmg"
+                sparkle:version="1.0.0"
+                sparkle:shortVersionString="1.0.0"
+                sparkle:os="macos"
+                length="0"
+                type="application/octet-stream" />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>
