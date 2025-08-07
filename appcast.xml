@@ -4,11 +4,11 @@
         <title>PromptBind</title>
         <item>
             <title>1.0</title>
-            <pubDate>Thu, 07 Aug 2025 13:42:57 +0000</pubDate>
+            <pubDate>Thu, 07 Aug 2025 15:02:33 +0000</pubDate>
             <sparkle:version>3</sparkle:version>
             <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="PromptBind-v0.02.dmg" length="1514464" type="application/octet-stream"/>
+            <enclosure url="PromptBind-v0.03.dmg" length="1516182" type="application/octet-stream"/>
         </item>
     </channel>
 </rss>
